@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="一个大学生的 AI 学习与探索个人介绍网页">
-  <title>我的第一个 AI 网站</title>
+  <meta name="description" content="一个大学生 AI 创作者的个人主页，分享 AI 项目、编程实践与技能成长路线。">
+  <title>AI 创作者个人主页</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -13,8 +13,8 @@
       <a class="brand" href="#home">AI<span>.</span></a>
       <div class="nav-links">
         <a class="active" href="#home">首页</a>
-        <a href="#about">关于我</a>
-        <a href="#plan">学习计划</a>
+        <a href="#projects">项目</a>
+        <a href="#plan">成长路线</a>
         <a href="#contact">联系我</a>
       </div>
     </nav>
@@ -22,20 +22,21 @@
 
   <main class="page-shell">
     <section class="intro" id="home" aria-labelledby="page-title">
-      <p class="eyebrow">HELLO, AI WORLD</p>
-      <h1 id="page-title">我的第一个 <span>AI 网站</span></h1>
-      <p class="intro-text">你好！我是一个正在探索 AI 与编程的大学生，喜欢把好奇心变成一个个真实的小项目。</p>
+      <p class="eyebrow">AI CREATOR · LEARN & BUILD</p>
+      <h1 id="page-title"><span>AI 创作者</span><br>把想法变成作品</h1>
+      <p class="intro-text">你好！我是一个正在探索 AI 与编程的大学生，也是一名持续成长的 AI 创作者。我用 AI 辅助学习、用代码实现想法，在这里分享作品与成长记录。</p>
       <button class="explore-button" id="explore-button" type="button">
         开始探索
         <span aria-hidden="true">→</span>
       </button>
       <p class="button-message" id="button-message" aria-live="polite">准备好一起出发了吗？</p>
+      <p><a class="contact-link" href="#projects">查看我的项目 <span aria-hidden="true">↓</span></a></p>
     </section>
 
     <section class="learning-path" id="about" aria-labelledby="path-title">
       <div class="section-heading">
-        <p class="eyebrow">MY NEXT STEPS</p>
-        <h2 id="path-title">把兴趣，变成能力</h2>
+        <p class="eyebrow">ABOUT MY CREATION</p>
+        <h2 id="path-title">我的创作方向</h2>
       </div>
 
       <div class="card-grid">
@@ -60,10 +61,55 @@
         <article class="learning-card card-green">
           <div class="card-number">03</div>
           <div>
-            <h3>尝试 AI 变现</h3>
-            <p>探索 AI 在真实场景中的价值，创造更多可能。</p>
+            <h3>解决真实问题</h3>
+            <p>从学习和生活中的小需求出发，探索 AI 的实用价值。</p>
           </div>
           <span class="card-arrow" aria-hidden="true">↗</span>
+        </article>
+      </div>
+    </section>
+
+    <!-- 复用现有卡片样式；规划中的项目明确标注状态。 -->
+    <section class="learning-path" id="projects" aria-labelledby="projects-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">MY AI PROJECTS</p>
+          <h2 id="projects-title">把想法做成看得见的作品</h2>
+        </div>
+        <p class="section-note">从个人主页出发，逐步积累自己的 AI 项目。</p>
+      </div>
+
+      <div class="card-grid">
+        <article class="learning-card card-blue">
+          <div class="card-number">01 · 持续完善</div>
+          <div>
+            <h3>AI 创作者个人主页</h3>
+            <p>展示个人介绍、项目与学习路线，记录从想法到网页的实践。</p>
+            <p>技术：HTML / CSS / JavaScript</p>
+            <p><a class="contact-link" href="#home">查看本页作品</a></p>
+            <!-- 有真实仓库地址后，在这里添加项目源码链接。 -->
+            <p>GitHub 仓库：待补充</p>
+          </div>
+        </article>
+
+        <article class="learning-card card-yellow">
+          <div class="card-number">02 · 规划中</div>
+          <div>
+            <h3>AI 提示词手册</h3>
+            <p>计划整理学习、写作与编程中的提示词，记录使用场景和改进方法。</p>
+            <p>计划技术：HTML / CSS / JavaScript</p>
+            <p>完成后补充演示与源码链接。</p>
+          </div>
+        </article>
+
+        <article class="learning-card card-green">
+          <div class="card-number">03 · 规划中</div>
+          <div>
+            <h3>学习打卡工具</h3>
+            <p>计划用 AI 辅助开发一个小工具，记录每日任务和完成情况。</p>
+            <p>计划技术：JavaScript / 本地存储</p>
+            <p>完成后补充演示与源码链接。</p>
+          </div>
         </article>
       </div>
     </section>
@@ -72,9 +118,9 @@
       <div class="section-heading">
         <div>
           <p class="eyebrow">30 DAYS TO GROW</p>
-          <h2 id="plan-title">我的学习计划</h2>
+          <h2 id="plan-title">我的技能成长路线</h2>
         </div>
-        <p class="section-note">每天投入一点时间，让进步看得见。</p>
+        <p class="section-note">30 天参考路线：每个阶段都留下一个具体成果。</p>
       </div>
 
       <div class="plan-layout">
@@ -82,24 +128,24 @@
           <article class="plan-item">
             <span class="plan-icon plan-icon-orange">01</span>
             <div>
-              <h3>ChatGPT</h3>
-              <p>掌握提问方法，练习用 AI 辅助学习和整理思路。</p>
+              <h3>AI 基础与提示词</h3>
+              <p>练习描述目标、提供背景和检查回答。阶段成果：整理 10 条经过实践的提示词。</p>
             </div>
             <span class="plan-days">第 1 - 10 天</span>
           </article>
           <article class="plan-item">
             <span class="plan-icon plan-icon-blue">02</span>
             <div>
-              <h3>Codex</h3>
-              <p>尝试 AI 编程协作，把想法快速变成可运行的功能。</p>
+              <h3>网页基础与 AI 编程协作</h3>
+              <p>学习 HTML 结构、CSS 布局和 JavaScript 事件，借助 AI 理解并修改代码。阶段成果：完成一个响应式主页。</p>
             </div>
             <span class="plan-days">第 11 - 20 天</span>
           </article>
           <article class="plan-item">
             <span class="plan-icon plan-icon-green">03</span>
             <div>
-              <h3>网页开发</h3>
-              <p>完成一个自己的网页作品，学习发布与持续迭代。</p>
+              <h3>项目实践与 GitHub</h3>
+              <p>练习 Git 版本管理，编写项目说明并发布仓库。阶段成果：做出一个可演示的小工具，记录改进计划。</p>
             </div>
             <span class="plan-days">第 21 - 30 天</span>
           </article>
@@ -107,28 +153,32 @@
 
         <aside class="progress-panel" aria-labelledby="progress-title">
           <div class="progress-topline">
-            <p class="eyebrow">TODAY</p>
-            <span>第 08 天</span>
+            <p class="eyebrow">PROGRESS DEMO</p>
+            <span>示例 · 第 08 天</span>
           </div>
-          <h3 id="progress-title">今日学习进度</h3>
+          <h3 id="progress-title">学习进度示例</h3>
           <div class="progress-value"><strong>65%</strong><span>完成度</span></div>
-          <div class="progress-track" role="progressbar" aria-label="今日学习进度" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100">
+          <div class="progress-track" role="progressbar" aria-label="示例学习进度，非实际记录" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100">
             <div class="progress-bar"></div>
           </div>
-          <p class="progress-caption">已经完成今天的大部分计划，继续保持！</p>
+          <p class="progress-caption">这里保留原有的静态进度展示，65% 为示例数据，暂不自动记录学习情况。</p>
         </aside>
       </div>
     </section>
 
     <section class="contact-section" id="contact" aria-labelledby="contact-title">
       <p class="eyebrow">LET'S CONNECT</p>
-      <h2 id="contact-title">一起交流学习中的新发现</h2>
-      <a class="contact-link" href="mailto:hello@example.com">hello@example.com <span aria-hidden="true">↗</span></a>
+      <h2 id="contact-title">交流 AI 想法，一起创作</h2>
+      <!-- 请将示例邮箱替换为自己的真实邮箱。 -->
+      <p><a class="contact-link" href="mailto:hello@example.com">hello@example.com <span aria-hidden="true">↗</span></a>（示例邮箱，待替换）</p>
+      <!-- 请将 GitHub 入口替换为 https://github.com/你的用户名，并将文字改为“我的 GitHub”。 -->
+      <p><a class="contact-link" href="https://github.com/" target="_blank" rel="noopener noreferrer">访问 GitHub（新窗口） <span aria-hidden="true">↗</span></a></p>
+      <p>个人 GitHub 主页与项目仓库链接待补充。</p>
     </section>
   </main>
 
   <footer class="footer">
-    <span>© 2026 我的第一个 AI 网站</span>
+    <span>© 2026 AI 创作者个人主页</span>
     <span>持续学习 · 持续创造 · 持续分享</span>
   </footer>
   <script src="script.js"></script>
