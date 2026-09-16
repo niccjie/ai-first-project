@@ -9,7 +9,12 @@ exploreButton.addEventListener('click', () => {
 });
 
 const navLinks = document.querySelectorAll('.nav-links a');
-// Keep the existing navigation active while browsing the nested AI Lab topic.
+// Associate supporting sections with the existing navigation.
+const sectionNavigation = {
+  "tech-stack": "about",
+  "ai-lab": "projects",
+  "future-direction": "timeline"
+};
 const sections = document.querySelectorAll('main > section[id]');
 
 function setActiveSection(id) {
@@ -29,7 +34,7 @@ function updateNavigation() {
       current = section.id;
     }
   });
-  setActiveSection(current === 'ai-lab' ? 'projects' : current);
+  setActiveSection(sectionNavigation[current] || current);
   scrollPending = false;
 }
 
@@ -52,7 +57,7 @@ if ('IntersectionObserver' in window) {
       }
     });
   }, { threshold: 0.12 });
-  document.querySelectorAll('.project-card, .lab-card').forEach((card) => {
+  document.querySelectorAll('.project-card, .lab-card, .studio-card').forEach((card) => {
     cardObserver.observe(card);
   });
 }
