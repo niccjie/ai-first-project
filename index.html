@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="一个大学生的 AI 学习与探索个人介绍网页">
+  <title>我的第一个 AI 网站</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="site-header">
+    <nav class="top-nav" aria-label="主导航">
+      <a class="brand" href="#home">AI<span>.</span></a>
+      <div class="nav-links">
+        <a class="active" href="#home">首页</a>
+        <a href="#about">关于我</a>
+        <a href="#plan">学习计划</a>
+        <a href="#contact">联系我</a>
+      </div>
+    </nav>
+  </header>
+
+  <main class="page-shell">
+    <section class="intro" id="home" aria-labelledby="page-title">
+      <p class="eyebrow">HELLO, AI WORLD</p>
+      <h1 id="page-title">我的第一个 <span>AI 网站</span></h1>
+      <p class="intro-text">你好！我是一个正在探索 AI 与编程的大学生，喜欢把好奇心变成一个个真实的小项目。</p>
+      <button class="explore-button" id="explore-button" type="button">
+        开始探索
+        <span aria-hidden="true">→</span>
+      </button>
+      <p class="button-message" id="button-message" aria-live="polite">准备好一起出发了吗？</p>
+    </section>
+
+    <section class="learning-path" id="about" aria-labelledby="path-title">
+      <div class="section-heading">
+        <p class="eyebrow">MY NEXT STEPS</p>
+        <h2 id="path-title">把兴趣，变成能力</h2>
+      </div>
+
+      <div class="card-grid">
+        <article class="learning-card card-blue">
+          <div class="card-number">01</div>
+          <div>
+            <h3>学习 AI</h3>
+            <p>理解人工智能的基础概念，保持对新技术的好奇。</p>
+          </div>
+          <span class="card-arrow" aria-hidden="true">↗</span>
+        </article>
+
+        <article class="learning-card card-yellow">
+          <div class="card-number">02</div>
+          <div>
+            <h3>学习编程</h3>
+            <p>用代码拆解问题，把想法一步步变成可以运行的作品。</p>
+          </div>
+          <span class="card-arrow" aria-hidden="true">↗</span>
+        </article>
+
+        <article class="learning-card card-green">
+          <div class="card-number">03</div>
+          <div>
+            <h3>尝试 AI 变现</h3>
+            <p>探索 AI 在真实场景中的价值，创造更多可能。</p>
+          </div>
+          <span class="card-arrow" aria-hidden="true">↗</span>
+        </article>
+      </div>
+    </section>
+
+    <section class="plan-section" id="plan" aria-labelledby="plan-title">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">30 DAYS TO GROW</p>
+          <h2 id="plan-title">我的学习计划</h2>
+        </div>
+        <p class="section-note">每天投入一点时间，让进步看得见。</p>
+      </div>
+
+      <div class="plan-layout">
+        <div class="plan-list">
+          <article class="plan-item">
+            <span class="plan-icon plan-icon-orange">01</span>
+            <div>
+              <h3>ChatGPT</h3>
+              <p>掌握提问方法，练习用 AI 辅助学习和整理思路。</p>
+            </div>
+            <span class="plan-days">第 1 - 10 天</span>
+          </article>
+          <article class="plan-item">
+            <span class="plan-icon plan-icon-blue">02</span>
+            <div>
+              <h3>Codex</h3>
+              <p>尝试 AI 编程协作，把想法快速变成可运行的功能。</p>
+            </div>
+            <span class="plan-days">第 11 - 20 天</span>
+          </article>
+          <article class="plan-item">
+            <span class="plan-icon plan-icon-green">03</span>
+            <div>
+              <h3>网页开发</h3>
+              <p>完成一个自己的网页作品，学习发布与持续迭代。</p>
+            </div>
+            <span class="plan-days">第 21 - 30 天</span>
+          </article>
+        </div>
+
+        <aside class="progress-panel" aria-labelledby="progress-title">
+          <div class="progress-topline">
+            <p class="eyebrow">TODAY</p>
+            <span>第 08 天</span>
+          </div>
+          <h3 id="progress-title">今日学习进度</h3>
+          <div class="progress-value"><strong>65%</strong><span>完成度</span></div>
+          <div class="progress-track" role="progressbar" aria-label="今日学习进度" aria-valuenow="65" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar"></div>
+          </div>
+          <p class="progress-caption">已经完成今天的大部分计划，继续保持！</p>
+        </aside>
+      </div>
+    </section>
+
+    <section class="contact-section" id="contact" aria-labelledby="contact-title">
+      <p class="eyebrow">LET'S CONNECT</p>
+      <h2 id="contact-title">一起交流学习中的新发现</h2>
+      <a class="contact-link" href="mailto:hello@example.com">hello@example.com <span aria-hidden="true">↗</span></a>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span>© 2026 我的第一个 AI 网站</span>
+    <span>持续学习 · 持续创造 · 持续分享</span>
+  </footer>
+  <script src="script.js"></script>
+</body>
+</html>
