@@ -1,20 +1,4 @@
-const exploreButton = document.querySelector('#explore-button');
-const buttonMessage = document.querySelector('#button-message');
-
-exploreButton?.addEventListener('click', () => {
-  document.body.classList.add('explored');
-  exploreButton.classList.add('is-clicked');
-  buttonMessage.textContent = '探索已开始，今天也向前一步。';
-  exploreButton.querySelector('span').textContent = '✓';
-});
-
 const navLinks = document.querySelectorAll('.nav-links a');
-// Associate supporting sections with the existing navigation.
-const sectionNavigation = {
-  "creator-data": "projects",
-  "plan": "timeline",
-  "future-direction": "timeline"
-};
 const sections = document.querySelectorAll('main > section[id]');
 
 function setActiveSection(id) {
@@ -35,7 +19,7 @@ function updateNavigation() {
       current = section.id;
     }
   });
-  setActiveSection(sectionNavigation[current] || current);
+  setActiveSection(current);
   scrollPending = false;
 }
 
@@ -58,7 +42,7 @@ if ('IntersectionObserver' in window) {
       }
     });
   }, { threshold: 0.12 });
-  document.querySelectorAll('.project-card, .lab-card, .studio-card, .journey-panel').forEach((card) => {
+  document.querySelectorAll('.project-card, .studio-card').forEach((card) => {
     cardObserver.observe(card);
   });
 }
