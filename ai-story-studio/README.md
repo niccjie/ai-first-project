@@ -1,106 +1,122 @@
-# niccjie AI Creator Studio · Version 0.3
+# niccjie AI Creator Studio
 
-AI Powered Prototype：从一个故事想法生成短剧、漫画或小说创作方案。保留米白、黑色和橙色卡片界面。
+本地 AI 故事创作助手：输入创意、选择短剧 / 漫画 / 小说，生成标题、人物设定、故事简介、首集内容与英文绘图提示词。保留现有界面、Demo 模式、重新生成、复制和最近 5 次历史记录。
 
-## 当前运行方式
+前端使用 HTML、CSS、JavaScript；后端使用 Node.js 22+ 与 Express；通过 OpenAI Responses API 的严格 JSON Schema 获取结构化结果。当前仅用于本地，不部署。
 
-默认 **Demo 模式**，可在 GitHub Pages 或直接打开 `index.html` 使用。无需后端、依赖或 API Key。Demo 使用本地示例模板，约 1.8 秒后生成结果，随机切换人物与标题；它不具备语义理解能力，不承诺每次重试都有不同内容。
-
-**真实 AI 模式已实现前端请求与后端参考代码，但需要自行配置并运行服务。** 当前没有配置远程 API 地址，也没有进行真实付费模型调用。AI 模式失败时明确显示错误，不会偷偷退回模拟内容。
-
-## 功能
-
-- 三种类型、500 字限制、示例灵感、清空输入、重新生成、复制结果。
-- 固定六字段 JSON：标题、故事简介（介绍与背景）、人物设定、三幕大纲、首集脚本和英文绘图提示词。
-- 短剧输出场景对白，漫画输出分镜，小说输出章节。
-- 分阶段加载文案、加载动画、重复提交保护、错误提示和请求超时。
-- 成功创作保存在 `localStorage` 中，最多最近 5 次；按标题、时间、类型和来源展示，点击恢复。
-- 历史读取损坏或容量不足不会阻止创作；支持清空历史。记录仅属于当前浏览器与域名，不跨设备同步。
-- 输入及模型结果通过 `textContent` 展示，不执行 HTML。
-- 手机与电脑响应式布局，支持键盘和减少动画偏好。
-
-## 技术栈与结构
-
-纯 HTML / CSS / JavaScript，无构建依赖。经典 defer 脚本按 api.js → script.js 加载，兼容 GitHub Pages 子目录。
+## 文件结构
 
 ```text
 ai-story-studio/
-├── index.html
-├── style.css
-├── script.js          # UI、生成状态、历史与复制
-├── api.js             # 模拟生成、后端请求、结果校验、超时与错误
+├── index.html                 # 原有界面不变
+├── style.css                  # 原有样式不变
+├── script.js                  # 展示、历史记录及本地服务检测
+├── api.js                     # POST /api/create-story、超时、JSON 适配
 ├── README.md
-└── backend/           # 可选，GitHub Pages 不运行此目录
-    ├── server.mjs     # Node.js 22+ 原生 HTTP + fetch，无依赖
-    ├── .env.example   # 空环境变量模板
-    └── .gitignore
+├── server/
+│   ├── server.js              # Express 服务与 OpenAI 请求
+│   ├── package.json
+│   ├── package-lock.json      # 安装依赖后生成
+│   ├── .env                   # 本地填写，不提交
+│   ├── .env.example           # 空配置模板
+│   ├── .gitignore
+│   └── server.test.js         # 模拟 OpenAI 的本地 HTTP 测试
+├── tests/run.mjs              # 前端回归测试
+└── backend/                   # 旧版原生 HTTP 参考代码，不再作为启动入口
 ```
 
-## 本地体验 Demo
+## 启动
 
-在仓库根目录运行：
+安装 Node.js 22 或更新版本（包含 npm），在仓库根目录执行：
 
-```sh
-python -m http.server 8000
+```powershell
+cd ai-story-studio/server
+npm install
 ```
 
-访问 `http://localhost:8000/ai-story-studio/`。也可以直接打开 HTML。某些浏览器在 file:// 下限制存储与剪贴板；失败时会提示，推荐通过本地 HTTP 使用。
+编辑 `server/.env`，填写：
 
-## 接通真实 GPT
-
-架构：浏览器 → 自己的 `/api/generate` 服务 → OpenAI Responses API。
-
-1. 安装 Node.js 22 或更新版本。复制 `backend/.env.example` 为 `backend/.env`，只在本机编辑。
-2. 在 `.env` 设置 `OPENAI_API_KEY`，以及你的账户可用、支持 Responses Structured Outputs 的 `OPENAI_MODEL`。本项目不预设模型或费用。
-3. `ALLOWED_ORIGIN` 设置为前端来源，例如 `http://localhost:8000`（不含路径或末尾斜杠）。
-4. 在 `ai-story-studio` 目录运行：
-
-```sh
-node --env-file=backend/.env backend/server.mjs
+```dotenv
+OPENAI_API_KEY=你的OpenAI密钥
+OPENAI_MODEL=你的账户可用且支持Responses结构化输出的模型ID
+PORT=3000
 ```
 
-5. 把 `api.js` 顶部的公开配置 `endpoint: ''` 改为 `endpoint: 'http://127.0.0.1:8787/api/generate'`。
-6. 从本地 HTTP 页面选择「AI · 真实生成」，输入想法后生成。返回代码 503 表示环境变量不完整，429 表示限流，422 表示拒绝或输出未完成。
+已创建 `.env`，密钥和模型默认留空，避免冒用配置。可从 `.env.example` 恢复模板。不要在聊天、前端脚本或 Git 中粘贴密钥。
 
-### GitHub Pages 部署
+```powershell
+npm start
+```
 
-GitHub Pages 只托管静态文件，不能安全保存和执行服务端密钥。GitHub Actions 中的环境变量如果写入前端打包产物同样会暴露，不要这样做。
+浏览器打开 **http://localhost:3000/ai-story-studio/**。服务会同时提供前端和 API，不需要另开 Python 静态服务器，也无需修改前端 URL。
 
-仅部署前端时保持 `endpoint: ''`，Demo 完整可用。要启用公网 AI，将后端独立部署到支持服务端环境变量的主机或 Serverless 服务，再将前端 endpoint 改为该服务的 HTTPS 地址。后端 `ALLOWED_ORIGIN` 设为 `https://niccjie.github.io`。
+页面检测到本地 Express 后默认选择真实 AI 模式；输入创意并点击「生成创作方案」。仍可切换 Demo。真实 AI 请求会消耗 OpenAI API 配额。修改 `.env` 后需重启；开发时可使用 `npm run dev`。
 
-参考后端默认只监听本机 127.0.0.1，可通过受控 HTTPS 反向代理连接。内置单进程每分钟 10 次和并发 2 次的总量限制；这是本地原型，**CORS 不是身份认证**。公网发布前需在网关增加用户认证、分用户限流与预算控制，不要将此示例直接用作无限制公共代理。多实例需共享限流存储。
+若端口占用，在 `.env` 修改 PORT，再访问对应端口。若出现 `node/npm 无法识别`，请安装 Node.js 并重新打开终端。
 
-密钥只保存在后端环境变量，不能放入 HTML、api.js、localStorage 或提交到 Git。`.env` 已加入忽略规则。不要上传包含真实密钥的 `.env` 文件到静态站点。
+## API
 
-## 接口约定
+### 健康检查
 
-`POST /api/generate`，Content-Type 为 application/json：
+`GET /api/health` → `{"service":"ai-creator-studio","configured":true}`。
+
+configured 只表示变量已填写，不代表密钥、模型或余额已验证。不会返回密钥。
+
+### 创作
+
+`POST /api/create-story`，Content-Type 为 `application/json`：
 
 ```json
 {"idea":"一个大学生获得未来AI系统","type":"drama"}
 ```
 
-type 仅允许 drama / comic / novel。成功直接返回以下对象，所有字段都是非空字符串，使用换行组织内部内容：
+- idea：去除首尾空格后 1–500 字。
+- type：`drama`（短剧）、`comic`（漫画）、`novel`（小说）。
+
+成功响应是五个非空字符串：
 
 ```json
 {
-  "title":"作品标题",
-  "summary":"一句话介绍：…\n\n故事背景：…",
-  "characters":"主角\n姓名：…\n年龄：…\n身份：…\n性格：…\n能力：…\n\n配角\n姓名：…\n作用：…",
-  "outline":"第一幕：…\n\n第二幕：…\n\n第三幕：…",
-  "episode":"场景1：…\n地点：…\n人物：…\n对白：…\n\n场景2：…",
-  "image_prompt":"cinematic anime style, young student, future city, dramatic lighting"
+  "title":"未来的选择",
+  "characters":"姓名、年龄、身份、性格、能力与配角作用……",
+  "summary":"一句话介绍：……\n故事背景：……\n剧情大纲：\n第一幕：……\n第二幕：……\n第三幕：……",
+  "episode":"场景1：……\n地点：……\n人物：……\n对白：……",
+  "image_prompt":"cinematic anime style, young student, futuristic city, dramatic lighting"
 }
 ```
 
-后端采用严格 JSON Schema 输出，并检查拒绝、未完成响应和字段有效性。前端独立校验非空字符串与长度。加载文案只是等待提示，不代表服务端真实阶段进度。请求失败保留上次结果，不写入失败历史。
+保留现有“剧情大纲”面板：前端从 summary 的独立 `剧情大纲：` 标记后提取内容，不新增 API 字段。模型未单列大纲时，面板显示提示，不编造内容。漫画生成分镜，小说生成首章。
 
-实现依据：[OpenAI Structured Outputs 官方文档](https://developers.openai.com/api/docs/guides/structured-outputs)。
+错误响应为 `{"error":"说明"}`：400 输入/JSON 无效，401 密钥验证失败，403 跨站访问，413 请求过大，415 内容类型错误，422 拒绝或未完成，429 限流/配额，502 上游连接或格式错误，503 未配置环境变量，504 超时。失败不自动降级为模板生成。
 
-## 本地检查与后续计划
+## 测试 API
 
-安装 Node.js 22+ 后，在 `ai-story-studio` 目录运行 `node tests/run.mjs`。测试包含模拟 DOM 的交互状态、存储与错误分支，以及本机 HTTP 接口联调；模型上游被替换为测试响应，不产生 API 费用。这不是浏览器视觉测试。
+启动服务后，在另一个 PowerShell 窗口运行：
 
-检查空输入、三种类型、重新生成、清空、复制、刷新后恢复历史、超过 5 次的淘汰行为，以及未配置 AI、接口错误和损坏存储的提示。
+```powershell
+Invoke-RestMethod http://localhost:3000/api/health
 
-后续：配置真实模型联调；部署带认证与用量限制的后端；加入流式输出、角色一致性和作品导出。当前升级不自动部署或修改线上站点。
+$storyPayload = @{ idea = '一个大学生获得未来AI系统'; type = 'drama' } | ConvertTo-Json
+Invoke-RestMethod -Uri http://localhost:3000/api/create-story -Method Post -ContentType 'application/json; charset=utf-8' -Body ([System.Text.Encoding]::UTF8.GetBytes($storyPayload))
+```
+
+第二条请求调用真实 OpenAI，需要有效环境变量。切换 type 可验证漫画与小说。
+
+在 `server` 目录运行离线模型测试（只发本机 HTTP 请求，不调用真实 OpenAI）：
+
+```powershell
+npm test
+node ../tests/run.mjs
+```
+
+覆盖三种类型、参数校验、JSON 错误、静态资源、密钥文件不可访问、上游失败、超时与历史交互。
+
+## 密钥与本地安全
+
+- `.env` 只由 Node.js 在启动时读取，已在 `.gitignore` 忽略。
+- Express 只向外提供明确列出的页面文件，不开放 server、backend、测试、依赖或 `.env`。
+- 只监听 `127.0.0.1`，浏览器 API 调用限制为同源；含请求体上限、超时、每分钟 10 次和最多 2 个并发的本机进程限制。
+- 不记录输入、密钥或原始上游错误。历史内容仅由现有前端保存在当前浏览器。
+- 不要用通用静态服务器托管包含真实 `.env` 的整个目录。此版本不用于公网部署。
+
+参考：[OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs)、[Express 5 API](https://expressjs.com/en/5x/api/)。

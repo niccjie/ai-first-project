@@ -157,3 +157,16 @@ $('#copy-button').addEventListener('click', async () => {
   }
 });
 readHistory(); renderHistory(); updateMode();
+// Detect the local Express service, retaining Demo on static hosting.
+let modeTouched = false;
+$('#generation-mode').addEventListener('change', () => { modeTouched = true; });
+if (['localhost', '127.0.0.1'].includes(window.location.hostname)) {
+  fetch('/api/health', { signal: AbortSignal.timeout(3000) })
+    .then(response => response.ok ? response.json() : null)
+    .then(health => {
+      if (health?.service === 'ai-creator-studio' && !modeTouched && !busy && !current) {
+        $('#generation-mode').value = 'ai';
+        updateMode();
+      }
+    }).catch(() => {});
+}

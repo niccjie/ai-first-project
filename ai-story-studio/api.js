@@ -2,7 +2,7 @@
 
 // Public URL only. API keys belong exclusively in backend environment variables.
 window.StudioAPI = (() => {
-  const config = Object.freeze({ endpoint: '', timeoutMs: 60000 });
+  const config = Object.freeze({ endpoint: '/api/create-story', timeoutMs: 60000 });
   const fields = ['title', 'summary', 'characters', 'outline', 'episode', 'image_prompt'];
   const types = { drama: '短剧', comic: '漫画', novel: '小说' };
   function validate(data) {
@@ -42,11 +42,18 @@ window.StudioAPI = (() => {
     try {
       const response = await fetch(endpoint.href, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea: idea.trim(), type }), signal: controller.signal });
       if (!response.ok) {
-        const messages = { 400: '输入无效，请修改故事想法。', 401: 'AI 服务验证失败，请联系站点维护者。', 403: '当前站点无权访问 AI 服务。', 422: 'AI 未能完成本次创作，请调整想法后重试。', 429: '请求过于频繁，请稍后重试。', 503: 'AI 服务尚未配置，请使用 Demo 模式。' };
+        const messages = { 400: '输入无效，请修改故事想法。', 401: 'AI 服务验证失败，请检查服务端密钥。', 403: '当前站点无权访问 AI 服务。', 404: '未找到 AI 接口，请通过本地 Express 服务打开网页。', 422: 'AI 未能完成本次创作，请调整想法后重试。', 429: '请求过于频繁或 API 配额受限，请稍后重试。', 503: '请在 server/.env 配置密钥和模型并重启服务，或使用 Demo 模式。', 504: 'AI 请求超时，请稍后重试。' };
         throw new Error(messages[response.status] || 'API连接失败，请稍后重试。');
       }
       let data;
       try { data = await response.json(); } catch { throw new Error('AI 返回了无效 JSON，请稍后重试。'); }
+      // The API returns five fields. Keep the existing outline panel and old six-field history.
+      if (data && typeof data.summary === 'string' && !Object.hasOwn(data, 'outline')) {
+        const split = data.summary.match(/(?:^|\n)剧情大纲[：:]\s*\n?/);
+        const outline = split ? data.summary.slice(split.index + split[0].length).trim() : '本次方案未单列剧情大纲，可参考故事简介与首集脚本。';
+        const summary = split ? data.summary.slice(0, split.index).trim() : data.summary;
+        data = { ...data, summary, outline };
+      }
       return validate(data);
     } catch (error) {
       if (error.name === 'AbortError') throw new Error('AI 请求超时，请稍后重试。');

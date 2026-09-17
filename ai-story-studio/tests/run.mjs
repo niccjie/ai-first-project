@@ -30,7 +30,7 @@ function context({ endpoint = '', fetchImpl = async () => ({ ok: true, json: asy
     navigator: { clipboard: { writeText: async text => { sandbox.copied = text; } } }
   };
   vm.createContext(sandbox);
-  vm.runInContext(apiCode.replace("endpoint: ''", `endpoint: '${endpoint}'`), sandbox);
+  vm.runInContext(apiCode.replace("endpoint: '/api/create-story'", `endpoint: '${endpoint}'`), sandbox);
   vm.runInContext(uiCode, sandbox);
   return { sandbox, el, radios, storage, generate: () => vm.runInContext('generate()', sandbox) };
 }
@@ -91,6 +91,17 @@ const real = context({ endpoint: 'https://example.test/api/generate' });
 real.el('#story-idea').value = '真实请求测试'; real.el('#generation-mode').value = 'ai'; await real.generate();
 assert.equal(real.el('#story-title').textContent, fixture.title);
 assert.ok(real.el('#result-badge').textContent.includes('AI 生成'));
+const fiveFields = { ...fixture, summary: '故事背景\n剧情大纲：\n第一幕：开始\n第二幕：冲突\n第三幕：结束' };
+delete fiveFields.outline;
+const localAI = context({ endpoint: '/api/create-story', fetchImpl: async (url, options) => {
+  assert.equal(url, 'http://localhost:8000/api/create-story');
+  assert.equal(options.method, 'POST');
+  return { ok: true, json: async () => fiveFields };
+} });
+localAI.el('#story-idea').value = '本地故事'; localAI.el('#generation-mode').value = 'ai';
+await localAI.generate();
+assert.equal(localAI.el('#story-summary').textContent, '故事背景');
+assert.ok(localAI.el('#story-outline').textContent.includes('第三幕'));
 
 let upstreamBody;
 let upstreamResult = { status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(fixture) }] }] };
