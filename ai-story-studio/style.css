@@ -1,4 +1,17 @@
 :root { --paper: #f8f7f2; --ink: #20211f; --muted: #72736c; --accent: #ff6b4a; --line: #e3e2da; --card: #fffefa; }
+.structured-text { white-space: pre-wrap; }
+#story-title { margin: 0 0 14px; font-size: 1.2rem; overflow-wrap: anywhere; }
+#generation-mode { width: 100%; padding: 12px; background: var(--card); color: var(--ink); border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: .85rem; }
+#generation-mode:focus-visible { outline: 3px solid #b9432c; outline-offset: 4px; }
+.history-section { margin-top: 40px; padding: 28px; background: var(--card); border: 1px solid var(--line); border-radius: 16px; }
+.history-section .example-button { margin: 0; }
+.history-section > p { font-size: .8rem; color: var(--muted); }
+#history-empty { padding-top: 16px; }
+#history-list { list-style: none; padding: 0; margin: 16px 0 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); gap: 12px; }
+#history-list button { display: block; width: 100%; height: 100%; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); color: var(--ink); text-align: left; overflow-wrap: anywhere; }
+#history-list button:hover:not(:disabled) { border-color: var(--accent); }
+#history-list strong, #history-list span { display: block; }
+#history-list span { margin-top: 8px; font-size: .7rem; color: var(--muted); }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
 body { margin: 0; color: var(--ink); background: var(--paper); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei", sans-serif; line-height: 1.7; }

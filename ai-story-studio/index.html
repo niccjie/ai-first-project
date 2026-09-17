@@ -6,6 +6,7 @@
   <meta name="description" content="AI Creator Studio：从故事想法出发，探索短剧、漫画和小说的创作方案。">
   <title>AI Creator Studio · niccjie</title>
   <link rel="stylesheet" href="style.css">
+  <script src="api.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -16,7 +17,7 @@
   <main class="page-shell">
     <section class="hero" id="home" aria-labelledby="page-title">
       <div><p class="eyebrow">AI × 创意 × 故事</p><h1 id="page-title">AI Creator <span>Studio</span></h1><p class="hero-subtitle">探索 AI 辅助创作，从想法到作品。</p><p class="hero-description">一段灵感，三种叙事方式。<br>把故事的起点，展开为可以继续打磨的创作方案。</p></div>
-      <aside class="hero-note"><span class="status-dot" aria-hidden="true"></span><span>创作原型 · v0.1</span><p>从一句「如果……」开始，<br>让下一个故事发生。</p><span class="note-bottom">构思 → 角色 → 剧情 → 画面</span></aside>
+      <aside class="hero-note"><span class="status-dot" aria-hidden="true"></span><span>Version 0.3</span><p>AI Powered Prototype</p><span class="note-bottom">构思 → 角色 → 剧情 → 画面</span></aside>
     </section>
 
     <section class="studio" aria-label="故事创作工作台">
@@ -33,10 +34,12 @@
             <label class="type-option"><input type="radio" name="story-type" value="comic"><span>漫画<small>分镜与画面</small></span></label>
             <label class="type-option"><input type="radio" name="story-type" value="novel"><span>小说<small>叙事与内心</small></span></label>
           </div></fieldset>
+          <label for="generation-mode">创作模式</label><select id="generation-mode" aria-describedby="mode-note"><option value="demo">Demo · 本地模拟</option><option value="ai">AI · 真实生成（需配置服务）</option></select>
           <button class="generate-button" id="generate-button" type="submit"><span class="spinner" id="spinner" hidden aria-hidden="true"></span><span id="generate-label">生成创作方案</span><span aria-hidden="true">→</span></button>
           <button class="example-button" id="example-button" type="button">没有灵感？试试示例想法 ↗</button>
+          <button class="example-button" id="clear-button" type="button">清空输入</button>
         </form>
-        <p class="demo-note">本地模拟 Demo · 未接入 AI API。根据你的输入与类型组合示例模板，输入不会上传。</p>
+        <p class="demo-note" id="mode-note">Demo 模式：本地模拟，不上传输入。</p>
         <noscript><p class="field-error">请启用 JavaScript 使用模拟生成功能。</p></noscript>
       </div>
 
@@ -44,22 +47,24 @@
         <div class="card-heading"><span class="step">02 / 创作方案</span><span class="result-badge" id="result-badge">等待灵感</span></div>
         <h2 id="output-title" tabindex="-1">故事，从这里展开</h2>
         <p class="generation-status" id="generation-status" role="status" aria-live="polite">输入一个想法，获得五个维度的创作参考。</p>
+        <p class="field-error" id="request-error" role="alert"></p>
         <div class="empty-state" id="empty-state"><div class="paper-stack" aria-hidden="true"><span>一个想法<br><b>无限可能<span class="accent">。</span></b></span></div><p>故事简介 · 人物设定 · 剧情大纲<br>第一集脚本 · AI绘图提示词</p></div>
         <div class="loading-state" id="loading-state" hidden aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
         <div id="results" hidden>
           <p class="result-source" id="result-source"></p>
-          <article class="result-section"><h3><span>01</span>故事简介</h3><p id="story-summary"></p></article>
-          <article class="result-section"><h3><span>02</span>人物设定</h3><ul class="character-list" id="story-characters"></ul></article>
-          <article class="result-section"><h3><span>03</span>剧情大纲</h3><ol class="outline-list" id="story-outline"></ol></article>
+          <article class="result-section"><h3><span>01</span>故事简介</h3><h4 id="story-title"></h4><p class="structured-text" id="story-summary"></p></article>
+          <article class="result-section"><h3><span>02</span>人物设定</h3><p class="structured-text" id="story-characters"></p></article>
+          <article class="result-section"><h3><span>03</span>剧情大纲</h3><p class="structured-text" id="story-outline"></p></article>
           <article class="result-section"><h3><span>04</span>第一集脚本</h3><p class="script-format" id="script-format"></p><div class="script-content" id="story-script"></div></article>
           <article class="result-section"><h3><span>05</span>AI绘图提示词</h3><p class="image-prompt" id="image-prompt"></p></article>
-          <div class="result-actions"><button class="copy-button" id="copy-button" type="button">复制完整方案 <span aria-hidden="true">↗</span></button><span id="copy-status" role="status"></span></div>
+          <div class="result-actions"><button class="copy-button" id="regenerate-button" type="button">重新生成 ↻</button><button class="copy-button" id="copy-button" type="button">复制完整方案 <span aria-hidden="true">↗</span></button><span id="copy-status" role="status"></span></div>
           <p class="result-note">这是创作起点。继续补充人物动机与细节，让故事有自己的声音。</p>
         </div>
       </section>
     </section>
+    <section class="history-section" aria-labelledby="history-title"><div class="card-heading"><h2 id="history-title">历史创作</h2><button class="example-button" id="clear-history" type="button">清空历史</button></div><p id="history-status" role="status">最近 5 次创作保存在此浏览器中。</p><p id="history-empty">还没有创作记录，从一个想法开始吧。</p><ul id="history-list"></ul></section>
     <section class="process" aria-labelledby="process-title"><h2 id="process-title">把灵感向前推进一步</h2><ol><li><span>01</span><div><h3>描述想法</h3><p>从人物、矛盾或一个「如果」开始。</p></div></li><li><span>02</span><div><h3>展开方案</h3><p>选择叙事形式，建立故事的基本结构。</p></div></li><li><span>03</span><div><h3>继续创作</h3><p>复制方案，补充细节，打磨属于你的作品。</p></div></li></ol></section>
   </main>
-  <footer><span>© 2026 niccjie · AI Creator Studio</span><span>小小的想法，也值得被创造。</span></footer>
+  <footer><span>AI Creator Studio · Built by niccjie</span><span>Powered by AI imagination</span></footer>
 </body>
 </html>
