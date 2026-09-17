@@ -1,7 +1,7 @@
 const exploreButton = document.querySelector('#explore-button');
 const buttonMessage = document.querySelector('#button-message');
 
-exploreButton.addEventListener('click', () => {
+exploreButton?.addEventListener('click', () => {
   document.body.classList.add('explored');
   exploreButton.classList.add('is-clicked');
   buttonMessage.textContent = '探索已开始，今天也向前一步。';
@@ -11,8 +11,8 @@ exploreButton.addEventListener('click', () => {
 const navLinks = document.querySelectorAll('.nav-links a');
 // Associate supporting sections with the existing navigation.
 const sectionNavigation = {
-  "tech-stack": "about",
-  "ai-lab": "projects",
+  "creator-data": "projects",
+  "plan": "timeline",
   "future-direction": "timeline"
 };
 const sections = document.querySelectorAll('main > section[id]');
@@ -28,6 +28,7 @@ function setActiveSection(id) {
 
 let scrollPending = false;
 function updateNavigation() {
+  if (!sections.length) return;
   let current = sections[0].id;
   sections.forEach((section) => {
     if (section.getBoundingClientRect().top <= window.innerHeight * 0.35) {
@@ -57,7 +58,7 @@ if ('IntersectionObserver' in window) {
       }
     });
   }, { threshold: 0.12 });
-  document.querySelectorAll('.project-card, .lab-card, .studio-card').forEach((card) => {
+  document.querySelectorAll('.project-card, .lab-card, .studio-card, .journey-panel').forEach((card) => {
     cardObserver.observe(card);
   });
 }
