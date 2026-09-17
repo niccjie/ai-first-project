@@ -7,6 +7,9 @@
   <title>AI Creator Studio · niccjie</title>
   <link rel="stylesheet" href="style.css">
   <script src="api.js" defer></script>
+  <script src="production-contract.js" defer></script>
+  <script src="production-api.js" defer></script>
+  <script src="production-view.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -17,7 +20,7 @@
   <main class="page-shell">
     <section class="hero" id="home" aria-labelledby="page-title">
       <div><p class="eyebrow">AI × 创意 × 故事</p><h1 id="page-title">AI Creator <span>Studio</span></h1><p class="hero-subtitle">探索 AI 辅助创作，从想法到作品。</p><p class="hero-description">一段灵感，三种叙事方式。<br>把故事的起点，展开为可以继续打磨的创作方案。</p></div>
-      <aside class="hero-note"><span class="status-dot" aria-hidden="true"></span><span>Version 0.3</span><p>AI Powered Prototype</p><span class="note-bottom">构思 → 角色 → 剧情 → 画面</span></aside>
+      <aside class="hero-note"><span class="status-dot" aria-hidden="true"></span><span>生产工作台 · V0.2</span><p>一个创意，展开一整季。</p><span class="note-bottom">作品策划 → 多集大纲 → 单集生产</span></aside>
     </section>
 
     <section class="studio" aria-label="故事创作工作台">
@@ -34,8 +37,15 @@
             <label class="type-option"><input type="radio" name="story-type" value="comic"><span>漫画<small>分镜与画面</small></span></label>
             <label class="type-option"><input type="radio" name="story-type" value="novel"><span>小说<small>叙事与内心</small></span></label>
           </div></fieldset>
+          <div class="planning-options">
+            <div><label for="story-genre">作品题材</label><select id="story-genre"><option>悬疑</option><option>都市</option><option>校园</option><option>爱情</option><option>科幻</option><option>逆袭</option><option>重生</option><option>其他</option></select></div>
+            <div><label for="episode-count">总集数 / 章节数</label><select id="episode-count"><option value="20">20 集</option><option value="30" selected>30 集</option><option value="50">50 集</option></select></div>
+            <div id="duration-field"><label for="episode-duration">单集目标时长</label><select id="episode-duration"><option value="30">30 秒</option><option value="60" selected>60 秒</option><option value="90">90 秒</option></select></div>
+          </div>
+          <p class="demo-note" id="planning-note">先生成设定与多集大纲，正文仅在点击“生成本集”时生成。</p>
           <label for="generation-mode">创作模式</label><select id="generation-mode" aria-describedby="mode-note"><option value="demo">Demo · 本地模拟</option><option value="ai">AI · 真实生成（需配置服务）</option></select>
-          <button class="generate-button" id="generate-button" type="submit"><span class="spinner" id="spinner" hidden aria-hidden="true"></span><span id="generate-label">生成创作方案</span><span aria-hidden="true">→</span></button>
+          <button class="generate-button" id="generate-button" type="submit"><span class="spinner" id="spinner" hidden aria-hidden="true"></span><span id="generate-label">生成整季策划</span><span aria-hidden="true">→</span></button>
+          <button class="example-button" id="legacy-button" type="button">快速创作方案（旧版）</button>
           <button class="example-button" id="example-button" type="button">没有灵感？试试示例想法 ↗</button>
           <button class="example-button" id="clear-button" type="button">清空输入</button>
         </form>
@@ -46,18 +56,29 @@
       <section class="output-card" id="output-panel" aria-labelledby="output-title" aria-busy="false">
         <div class="card-heading"><span class="step">02 / 创作方案</span><span class="result-badge" id="result-badge">等待灵感</span></div>
         <h2 id="output-title" tabindex="-1">故事，从这里展开</h2>
-        <p class="generation-status" id="generation-status" role="status" aria-live="polite">输入一个想法，获得五个维度的创作参考。</p>
+        <p class="generation-status" id="generation-status" role="status" aria-live="polite">先规划整季，再逐集创作。作品参数将与策划一起保存。</p>
+        <button class="example-button" id="cancel-generation" type="button" hidden>取消本次生成</button>
         <p class="field-error" id="request-error" role="alert"></p>
-        <div class="empty-state" id="empty-state"><div class="paper-stack" aria-hidden="true"><span>一个想法<br><b>无限可能<span class="accent">。</span></b></span></div><p>故事简介 · 人物设定 · 剧情大纲<br>第一集脚本 · AI绘图提示词</p></div>
+        <div class="empty-state" id="empty-state"><div class="paper-stack" aria-hidden="true"><span>一个想法<br><b>一整季故事<span class="accent">。</span></b></span></div><p>作品概览 · 人物 Bible · 整季结构<br>多集大纲 · 单集生产</p></div>
         <div class="loading-state" id="loading-state" hidden aria-hidden="true"><span></span><span></span><span></span><span></span><span></span></div>
         <div id="results" hidden>
           <p class="result-source" id="result-source"></p>
+          <div id="production-results" hidden>
+            <section class="result-section" aria-labelledby="overview-heading"><h3 id="overview-heading"><span>01</span>作品概览</h3><div id="series-overview"></div></section>
+            <section class="result-section" aria-labelledby="characters-heading"><h3 id="characters-heading"><span>02</span>人物 Bible</h3><div id="series-characters"></div></section>
+            <section class="result-section" aria-labelledby="props-heading"><h3 id="props-heading"><span>03</span>道具资产表</h3><div id="series-props"></div></section>
+            <section class="result-section" aria-labelledby="arc-heading"><h3 id="arc-heading"><span>04</span>整季结构</h3><div id="series-arc"></div></section>
+            <section class="result-section" aria-labelledby="episodes-heading"><h3 id="episodes-heading"><span>05</span>集数列表</h3><p class="demo-note">建议按集数顺序生成。跳过前集时，会依据前集大纲衔接。</p><div id="episode-list"></div><nav id="episode-pagination" aria-label="集数分页"></nav></section>
+            <section class="result-section" aria-labelledby="episode-heading"><h3 id="episode-heading" tabindex="-1"><span>06</span>单集工作区</h3><div id="episode-workspace"></div></section>
+          </div>
+          <div id="legacy-results">
           <article class="result-section"><h3><span>01</span>故事简介</h3><h4 id="story-title"></h4><p class="structured-text" id="story-summary"></p></article>
           <article class="result-section"><h3><span>02</span>人物设定</h3><p class="structured-text" id="story-characters"></p></article>
           <article class="result-section"><h3><span>03</span>剧情大纲</h3><p class="structured-text" id="story-outline"></p></article>
           <article class="result-section"><h3><span>04</span>第一集脚本</h3><p class="script-format" id="script-format"></p><div class="script-content" id="story-script"></div></article>
           <article class="result-section"><h3><span>05</span>AI绘图提示词</h3><p class="image-prompt" id="image-prompt"></p></article>
-          <div class="result-actions"><button class="copy-button" id="regenerate-button" type="button">重新生成 ↻</button><button class="copy-button" id="copy-button" type="button">复制完整方案 <span aria-hidden="true">↗</span></button><span id="copy-status" role="status"></span></div>
+          </div>
+          <div class="result-actions"><button class="copy-button" id="regenerate-button" type="button">重新生成 ↻</button><button class="copy-button" id="copy-button" type="button">复制完整方案 <span aria-hidden="true">↗</span></button><button class="copy-button" id="download-button" type="button">下载生产 JSON</button><span id="copy-status" role="status"></span></div>
           <p class="result-note">这是创作起点。继续补充人物动机与细节，让故事有自己的声音。</p>
         </div>
       </section>

@@ -9,20 +9,20 @@ async function serve(options, run) {
   try { await run(`http://127.0.0.1:${server.address().port}`); }
   finally { await new Promise(resolve => server.close(resolve)); }
 }
-const env = { OPENAI_API_KEY: 'test-placeholder', OPENAI_MODEL: 'test-model' };
+const env = { DEEPSEEK_API_KEY: 'test-placeholder', DEEPSEEK_MODEL: 'test-model' };
 const post = (url, body, extra = {}) => fetch(url + '/api/create-story', { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify(body) });
 test('Express serves UI, blocks secrets, validates requests and returns five AI fields', async () => {
   let calls = 0;
   await serve({ env, fetchImpl: async (url, options) => {
     calls++;
-    assert.equal(url, 'https://api.openai.com/v1/responses');
+    assert.equal(url, 'https://api.deepseek.com/v1/responses');
     const request = JSON.parse(options.body);
     assert.equal(request.text.format.strict, true);
     assert.equal(request.text.format.schema.required.length, 5);
     assert.equal(request.input, '大学生的AI故事');
     return { ok: true, json: async () => ({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(fixture) }] }] }) };
   } }, async url => {
-    for (const asset of ['/ai-story-studio/', '/ai-story-studio/api.js', '/ai-story-studio/script.js', '/ai-story-studio/style.css', '/index.html']) assert.equal((await fetch(url + asset)).status, 200);
+    for (const asset of ['/ai-story-studio/', '/ai-story-studio/api.js', '/ai-story-studio/script.js', '/ai-story-studio/style.css', '/ai-story-studio/production-contract.js', '/ai-story-studio/production-api.js', '/ai-story-studio/production-view.js', '/index.html']) assert.equal((await fetch(url + asset)).status, 200);
     for (const secret of ['/server/.env', '/ai-story-studio/server/.env', '/ai-story-studio/server/server.js', '/ai-story-studio/backend/.env', '/.env']) assert.equal((await fetch(url + secret)).status, 404);
     assert.equal((await post(url, { idea: '', type: 'drama' })).status, 400);
     assert.equal((await post(url, { idea: 'x'.repeat(501), type: 'drama' })).status, 400);

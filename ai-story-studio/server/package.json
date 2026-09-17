@@ -7,7 +7,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "test": "node --test server.test.js"
+    "test": "node --test server.test.js production.test.js"
   },
   "dependencies": { "express": "^5.1.0" }
 }

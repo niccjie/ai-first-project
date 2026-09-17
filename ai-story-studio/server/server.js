@@ -2,13 +2,14 @@
 const express = require('express');
 const path = require('node:path');
 const { existsSync } = require('node:fs');
+const { mountProduction } = require('./production');
 
 const fields = ['title', 'characters', 'summary', 'episode', 'image_prompt'];
 const types = { drama: '短剧', comic: '漫画', novel: '小说' };
 const schema = { type: 'object', properties: Object.fromEntries(fields.map(key => [key, { type: 'string' }])), required: fields, additionalProperties: false };
 const validStory = data => data && typeof data === 'object' && !Array.isArray(data) && Object.keys(data).length === 5 && fields.every(key => typeof data[key] === 'string' && data[key].trim() && data[key].length <= 20000);
 
-function createApp({ env = process.env, fetchImpl = fetch, timeoutMs = 55000 } = {}) {
+function createApp({ env = process.env, fetchImpl = fetch, timeoutMs = 55000, productionTimeoutMs = 90000, totalTimeoutMs = 540000, productionLogger } = {}) {
   const app = express();
   app.disable('x-powered-by');
   // Whitelist public files instead of exposing the parent directory (and .env).
@@ -22,7 +23,7 @@ function createApp({ env = process.env, fetchImpl = fetch, timeoutMs = 55000 } =
   });
   app.get('/', (_req, res) => res.redirect('/ai-story-studio/'));
   app.get('/ai-story-studio/', (_req, res) => res.sendFile(path.join(studio, 'index.html')));
-  for (const name of ['index.html', 'style.css', 'script.js', 'api.js']) {
+  for (const name of ['index.html', 'style.css', 'script.js', 'api.js', 'production-contract.js', 'production-api.js', 'production-view.js']) {
     app.get(`/ai-story-studio/${name}`, (_req, res) => res.sendFile(path.join(studio, name)));
   }
   for (const name of ['index.html', 'style.css', 'script.js']) {
@@ -35,20 +36,27 @@ app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', c
     if (origin && origin !== `${req.protocol}://${req.get('host')}`) return res.status(403).json({ error: '不允许跨站请求。' });
     next();
   });
+  app.use('/api/create-episode', express.json({ limit: '384kb', strict: true }));
   app.use('/api', express.json({ limit: '8kb', strict: true }));
   let count = 0;
   let minuteStart = Date.now();
   
   let active = 0;
+  function acquire() {
+    if (Date.now() - minuteStart >= 60000) { minuteStart = Date.now(); count = 0; }
+    if (count >= 10 || active >= 2) return null;
+    count++; active++;
+    return () => { active--; };
+  }
+  mountProduction(app, { env, fetchImpl, acquire, timeoutMs: productionTimeoutMs, totalTimeoutMs, logger: productionLogger });
   app.post('/api/create-story', async (req, res) => {
     if (!req.is('application/json')) return res.status(415).json({ error: '请发送 application/json。' });
     const { idea, type } = req.body || {};
     if (typeof idea !== 'string' || !idea.trim() || idea.trim().length > 500 || !Object.hasOwn(types, type)) return res.status(400).json({ error: '请输入 1 至 500 字创意，类型必须为 drama、comic 或 novel。' });
     if (!env.DEEPSEEK_API_KEY?.trim() || !env.DEEPSEEK_MODEL?.trim())
        return res.status(503).json({ error: '请在 server/.env 配置 DEEPSEEK_API_KEY 和 DEEPSEEK_MODEL，然后重启服务。' });
-    if (Date.now() - minuteStart >= 60000) { minuteStart = Date.now(); count = 0; }
-    if (count >= 10 || active >= 2) return res.status(429).json({ error: '请求过于频繁，请稍后重试。' });
-    count++; active++;
+    const release = acquire();
+    if (!release) return res.status(429).json({ error: '请求过于频繁，请稍后重试。' });
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     res.on('close', () => { if (!res.writableEnded) controller.abort(); });
@@ -74,9 +82,8 @@ app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', c
       if (!validStory(data)) return res.status(502).json({ error: 'AI 返回格式不完整，请重试。' });
       res.json(data);
     } catch (error) {
-      console.error('DeepSeek API ERROR:', error);
       if (!res.destroyed && !res.writableEnded) res.status(error.name === 'AbortError' ? 504 : 502).json({ error: error.name === 'AbortError' ? 'AI 请求超时，请稍后重试。' : 'API连接失败或响应无效，请稍后重试。' });
-    } finally { clearTimeout(timer); active--; }
+    } finally { clearTimeout(timer); release(); }
   });
   app.all('/api/create-story', (_req, res) => res.status(405).set('Allow', 'POST').json({ error: '请使用 POST 请求。' }));
   app.use((_req, res) => res.status(404).json({ error: '未找到资源。' }));

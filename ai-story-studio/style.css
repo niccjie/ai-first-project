@@ -127,3 +127,25 @@ footer { display: flex; justify-content: space-between; gap: 20px; padding: 24px
 }
 @media (max-width: 360px) { .input-card, .output-card { padding: 18px; } .type-option > span { padding-left: 25px; } .type-option input { left: 7px; } .type-option small { font-size: .55rem; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } *, *::before, *::after { animation: none !important; transition: none !important; } }
+
+/* Production workspace extends the original card system. */
+.planning-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 24px; }
+.planning-options label { display: block; font-size: .8rem; font-weight: 600; margin-bottom: 8px; }
+.planning-options select { width: 100%; min-width: 0; padding: 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--ink); font: inherit; font-size: .85rem; }
+.planning-options select:focus-visible, .production-detail summary:focus-visible { outline: 3px solid #b9432c; outline-offset: 4px; }
+.input-card { max-height: calc(100dvh - 48px); overflow-y: auto; scrollbar-width: thin; }
+#production-results h4 { font-size: 1.1rem; margin: 0 0 16px; overflow-wrap: anywhere; }
+.production-facts { margin: 12px 0; }
+.production-facts > div { margin: 12px 0; }
+.production-facts dt { color: var(--muted); font-size: .7rem; margin-bottom: 4px; }
+.production-facts dd { margin: 0; font-size: .85rem; line-height: 1.9; white-space: pre-wrap; overflow-wrap: anywhere; }
+.production-detail { margin-top: 12px; padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
+.production-detail summary { cursor: pointer; font-size: .85rem; font-weight: 600; overflow-wrap: anywhere; line-height: 1.8; }
+.production-detail[open] > summary { margin-bottom: 12px; }
+.production-detail .production-detail { background: var(--card); }
+.chapter-text { white-space: pre-wrap; line-height: 2.1 !important; }
+#episode-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
+#episode-pagination span { font-size: .75rem; color: var(--muted); }
+#episode-heading { scroll-margin-top: 24px; }
+#cancel-generation { margin: 12px 0 0; color: #b9432c; }
+@media (max-width: 740px) { .input-card { max-height: none; overflow-y: visible; } }
