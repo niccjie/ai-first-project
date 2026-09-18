@@ -45,6 +45,17 @@ test('missing configuration is explicit', async () => {
     assert.equal((await post(url, { idea: 'x', type: 'drama' })).status, 503);
   });
 });
+test('configured public origin receives only its CORS permission', async () => {
+  await serve({ env: { ...env, ALLOWED_ORIGIN: 'https://niccjie.github.io' } }, async url => {
+    const headers = { Origin: 'https://niccjie.github.io' };
+    const preflight = await fetch(url + '/api/create-story', { method: 'OPTIONS', headers });
+    assert.equal(preflight.status, 204);
+    assert.equal(preflight.headers.get('access-control-allow-origin'), 'https://niccjie.github.io');
+    assert.equal((await fetch(url + '/api/health', { headers })).status, 200);
+    const otherOrigin = await fetch(url + '/api/health', { headers: { Origin: 'https://other.test' } });
+    assert.equal(otherOrigin.headers.get('access-control-allow-origin'), null);
+  });
+});
 test('upstream failures, refusal, malformed output and timeout are handled', async () => {
   for (const [mock, code] of [
     [async () => ({ ok: false, status: 401 }), 401],

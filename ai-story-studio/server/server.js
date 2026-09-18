@@ -14,13 +14,21 @@ const validStory = data => data && typeof data === 'object' && !Array.isArray(da
 function createApp({ env = process.env, fetchImpl = fetch, timeoutMs = 55000, productionTimeoutMs = 90000, totalTimeoutMs = 540000, productionLogger } = {}) {
   const app = express();
   app.disable('x-powered-by');
+  // In production this is the GitHub Pages origin. When unset, retain the
+  // original local-only behaviour.
+  const allowedOrigin = typeof env.ALLOWED_ORIGIN === 'string' ? env.ALLOWED_ORIGIN.trim().replace(/\/$/, '') : '';
+  if (allowedOrigin) {
+    let parsed;
+    try { parsed = new URL(allowedOrigin); } catch { throw new Error('ALLOWED_ORIGIN 必须是完整的 http(s) 地址。'); }
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.origin !== allowedOrigin) throw new Error('ALLOWED_ORIGIN 必须是完整的 http(s) 地址。');
+  }
   // Whitelist public files instead of exposing the parent directory (and .env).
   const studio = path.resolve(__dirname, '..');
   const home = path.resolve(studio, '..');
   app.use((req, res, next) => {
     res.set('X-Content-Type-Options', 'nosniff');
     const hostname = req.hostname;
-    if (!['localhost', '127.0.0.1', '[::1]'].includes(hostname)) return res.status(403).json({ error: '仅允许本机访问。' });
+    if (!allowedOrigin && !['localhost', '127.0.0.1', '[::1]'].includes(hostname)) return res.status(403).json({ error: '仅允许本机访问。' });
     next();
   });
   app.get('/', (_req, res) => res.redirect('/ai-story-studio/'));
@@ -33,9 +41,18 @@ function createApp({ env = process.env, fetchImpl = fetch, timeoutMs = 55000, pr
   }
   app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', configured: Boolean(env.DEEPSEEK_API_KEY?.trim() && env.DEEPSEEK_MODEL?.trim()) }));  app.use('/api', (req, res, next) => {
-    // Browser requests must come from this exact local origin. CLI requests may omit Origin.
+    // Browser requests must come from the configured Pages origin. CLI health
+    // checks may omit Origin. This keeps the DeepSeek key server-only.
     const origin = req.get('origin');
-    if (origin && origin !== `${req.protocol}://${req.get('host')}`) return res.status(403).json({ error: '不允许跨站请求。' });
+    const expectedOrigin = allowedOrigin || `${req.protocol}://${req.get('host')}`;
+    if (origin && origin !== expectedOrigin) return res.status(403).json({ error: '不允许跨站请求。' });
+    if (origin) {
+      res.set('Access-Control-Allow-Origin', expectedOrigin);
+      res.set('Vary', 'Origin');
+      res.set('Access-Control-Allow-Methods', 'POST, OPTIONS');
+      res.set('Access-Control-Allow-Headers', 'Content-Type');
+    }
+    if (req.method === 'OPTIONS') return res.status(204).end();
     next();
   });
   app.use('/api/create-episode', express.json({ limit: '384kb', strict: true }));
@@ -135,7 +152,7 @@ if (require.main === module) {
   if (existsSync(envPath)) process.loadEnvFile(envPath);
   const port = Number(process.env.PORT || 3000);
   if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error('PORT 必须为 1 到 65535。');
-  const server = createApp().listen(port, '127.0.0.1', () => {
+  const server = createApp().listen(port, '0.0.0.0', () => {
     console.log(`AI Creator Studio: http://localhost:${port}/ai-story-studio/`);
   if (!process.env.DEEPSEEK_API_KEY?.trim() || !process.env.DEEPSEEK_MODEL?.trim()) console.log('请填写 server/.env；未配置时 Demo 可用，真实生成返回 503。');
   });

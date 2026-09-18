@@ -1,6 +1,10 @@
 'use strict';
 window.ProductionAPI = (() => {
   const C = window.ProductionContract;
+  // GitHub Pages is static, so its API must be a public HTTPS service.
+  // Leave the fallback for the already-working local Express workflow.
+  const apiBase = window.AI_CREATOR_STUDIO_API_BASE_URL || '';
+  const apiPath = path => apiBase ? new URL(path, apiBase).href : path;
   function demoSeries(options) {
     const stages = ['建立设定', '冲突升级', '重大反转', '真相逼近', '高潮与结局'];
     const size = options.total_episodes / 5;
@@ -78,7 +82,7 @@ window.ProductionAPI = (() => {
     let timedOut = false;
     const timer = setTimeout(() => { timedOut = true; controller.abort(); }, 550000);
     try {
-      const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
+      const response = await fetch(apiPath(path), { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
       const data = await response.json().catch(() => { throw Error('接口未返回有效 JSON，请通过本地服务打开页面。'); });
       if (!response.ok) throw Error(formatServerError(data));
       return data;
