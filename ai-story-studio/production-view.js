@@ -114,6 +114,58 @@ window.ProductionView = (() => {
     const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename;
     link.click(); URL.revokeObjectURL(link.href);
   }
+  function downloadText(filename, text) {
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename;
+    link.click(); URL.revokeObjectURL(link.href);
+  }
+  function clientValue(value) { return value == null || value === '' ? '未提供' : String(value); }
+  function buildClientDocument(record) {
+    const pack = buildEpisodeProductionPack(record);
+    const { source, episode } = pack;
+    const lines = [
+      `# ${source.title}`, '',
+      `## ${source.type === 'novel' ? `第 ${episode.episode_number} 章：${episode.title}` : `第 ${episode.episode_number} 集：${episode.title}`}`,
+      '', '## 项目摘要',
+      `- 类型：${source.type === 'comic' ? '漫画 / 漫剧' : source.type === 'novel' ? '小说' : '短剧'}`,
+      `- 创作模式：${source.mode === 'demo' ? '演示模板' : 'AI 创作'}`,
+      `- 开场钩子：${clientValue(episode.opening_hook)}`,
+      `- 本集反转：${clientValue(episode.twist)}`,
+      `- 结尾悬念：${clientValue(episode.cliffhanger)}`,
+      `- 连续性摘要：${clientValue(episode.continuity_summary)}`,
+      '', '## 角色设定'
+    ];
+    pack.character_anchors.forEach(character => lines.push(
+      `- ${character.name}：${clientValue(character.visual_identity)}（参考资产：${character.reference_status === 'approved_reference' ? '已审核' : character.reference_status === 'pending_review' ? '待审核' : '未提供'}）`
+    ));
+    if (source.type === 'novel') {
+      lines.push('', '## 章节正文', '', clientValue(episode.chapter_text), '', '## 交接与审核',
+        `- 建议文件：${pack.chapter_writing_manifest.output.relative_path}`,
+        `- 状态：正文待人工复核。`,
+        `- 下一步：确认连续性摘要与下一章衔接后再定稿。`);
+      return lines.join('\n');
+    }
+    lines.push('', '## 场景与镜头');
+    pack.scenes.forEach(scene => {
+      lines.push('', `### 场景 ${scene.scene_number}｜${clientValue(scene.location)}｜${clientValue(scene.time)}`,
+        `- 场景目的：${clientValue(scene.purpose)}`,
+        `- 出场人物：${scene.characters.length ? scene.characters.join('、') : '无'}`,
+        `- 场景时长：${clientValue(scene.duration)} 秒`);
+      const sceneShots = pack.shots.filter(shot => shot.scene_number === scene.scene_number);
+      sceneShots.forEach(shot => lines.push('', `#### 镜头 ${shot.shot_number}｜${clientValue(shot.shot_type)}｜${clientValue(shot.duration)} 秒`,
+        `- 画面：${clientValue(shot.visual)}`,
+        `- 动作：${clientValue(shot.action)}`,
+        `- 对白：${clientValue(shot.dialogue_line)}`,
+        `- 图像提示词：${clientValue(shot.image_prompt)}`,
+        `- 视频提示词：${clientValue(shot.video_prompt)}`));
+    });
+    lines.push('', '## 交付说明',
+      `- 首帧任务：${pack.frame_generation_manifest.task_count} 个。`,
+      `- 视觉生成状态：${pack.reference_readiness.visual_generation_ready ? '可进入人工提示词复核' : '仍需审核角色参考资产'}`,
+      '- 本文档可直接复制到 Notion、飞书或 Markdown 编辑器；也可在浏览器中打印为 PDF。',
+      '- 图像和视频生成需由客户自行选择平台，或在确认预算后另行执行。');
+    return lines.join('\n');
+  }
   function render(record, actions) {
     const plan = record.data;
     $('series-overview').replaceChildren(node('h4', plan.title));
@@ -225,7 +277,12 @@ window.ProductionView = (() => {
       downloadJSON(`${name}-production-pack.json`, payload);
       $('copy-status').textContent = '本集生产包已下载。';
     });
-    container.append(copy, pack);
+    const clientDocument = button(record.type === 'novel' ? '下载客户阅读版 Markdown' : '下载客户分镜版 Markdown', () => {
+      const name = `${String(episode.episode_number).padStart(2, '0')}-${episode.title}`.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+      downloadText(`${name}-客户交付版.md`, buildClientDocument(record));
+      $('copy-status').textContent = '客户阅读版 Markdown 已下载。';
+    });
+    container.append(copy, pack, clientDocument);
   }
-  return { render, renderEpisode, buildEpisodeProductionPack };
+  return { render, renderEpisode, buildEpisodeProductionPack, buildClientDocument };
 })();

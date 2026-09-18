@@ -77,7 +77,10 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   app.run(`updateReferenceAsset(${JSON.stringify(firstCharacter)}, { filename: 'lead-reference.png', approved: true })`);
   assert.equal(app.el('reference-assets').querySelectorAll('img').length, 1, 'only bundled project-relative assets may render a preview after rerendering');
   const productionPack = app.run('window.ProductionView.buildEpisodeProductionPack(current)');
+  const clientDocument = app.run('window.ProductionView.buildClientDocument(current)');
   assert.equal(productionPack.format, 'ai-story-studio/episode-production-pack/v1');
+  assert.ok(clientDocument.includes('# ' + productionPack.source.title));
+  assert.ok(clientDocument.includes('## 角色设定'));
   assert.equal(productionPack.character_anchors[0].asset_id, 'character_01');
   assert.equal(productionPack.character_anchors[0].reference_file, 'lead-reference.png');
   assert.equal(productionPack.character_anchors[0].reference_status, 'approved_reference');
@@ -107,7 +110,13 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
     assert.equal(productionPack.chapter_writing_manifest.status, 'draft_ready_for_human_review');
     assert.equal(productionPack.chapter_writing_manifest.output.relative_path, 'chapters/chapter_003.md');
     assert.ok(app.el('episode-workspace').textContent.includes('章节交接清单'));
-  } else assert.equal(productionPack.chapter_writing_manifest, null);
+    assert.ok(clientDocument.includes('## 章节正文'));
+    assert.ok(clientDocument.includes('## 交接与审核'));
+  } else {
+    assert.equal(productionPack.chapter_writing_manifest, null);
+    assert.ok(clientDocument.includes('## 场景与镜头'));
+    assert.ok(clientDocument.includes('图像提示词'));
+  }
   // Changing the form does not alter a saved season's production parameters.
   app.el('episode-duration').value = '60';
   if (type !== 'novel') assert.equal(app.run('current.episodes[3].shot_list.reduce((sum,s)=>sum+s.duration,0)'), duration);

@@ -113,7 +113,7 @@ type：drama / comic / novel。题材：悬疑、都市、校园、爱情、科�
 | api.js | 保留旧版创作请求，不改原有适配逻辑 |
 | production-contract.js | 浏览器与服务端共用 JSON Schema、人物/道具资产、集数、阶段、单集结构校验与镜头时长归一化 |
 | production-api.js | 新接口请求、超时 / 取消及本地 Demo 模板 |
-| production-view.js | 人物 / 阶段折叠、10 集分页、单集与小说正文展示、小说章节交接清单、本地参考图预览与人工审核状态，以及站内首帧任务清单 |
+| production-view.js | 人物 / 阶段折叠、10 集分页、客户可读 Markdown 导出、单集与小说正文展示、小说章节交接清单、本地参考图预览与人工审核状态，以及站内首帧任务清单 |
 | assets/references/ | Demo 角色参考图；工作台可预览，首次使用时仍需人工审核，审核前不会标为可生成 |
 | server/server.js | 原有 Express 与 DeepSeek 生成路径，挂载新路由、共享限流 |
 | server/production.js | 作品 Bible、分批大纲、上下文衔接与单集请求 |
