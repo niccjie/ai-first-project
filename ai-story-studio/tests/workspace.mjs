@@ -92,6 +92,8 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
     assert.ok(!productionPack.reference_readiness.missing_approved_references.includes(firstCharacter));
     assert.ok(productionPack.frame_generation_manifest.tasks.every(task => task.status === 'blocked_reference_review'));
     assert.ok(productionPack.frame_generation_manifest.tasks.every(task => task.output.relative_path.startsWith('assets/generated/episode-keyframes/')));
+    assert.ok(app.el('episode-workspace').textContent.includes('首帧任务清单'));
+    assert.ok(app.el('episode-workspace').textContent.includes('blocked_reference_review'));
     for (const shot of productionPack.shots) {
       const scene = productionPack.scenes.find(item => item.scene_number === shot.scene_number);
       assert.deepEqual([...shot.characters], [...scene.characters]);

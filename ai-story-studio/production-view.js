@@ -182,6 +182,18 @@ window.ProductionView = (() => {
         facts(card, { ...shot, dialogue_line: line ? `${line.speaker}：${line.line}` : '无对白' },
           { visual: '画面', action: '动作', dialogue_line: '对白', image_prompt: 'Image prompt', video_prompt: 'Video prompt' });
       });
+      const manifest = buildEpisodeProductionPack(record).frame_generation_manifest;
+      const taskBoard = disclosure(`首帧任务清单 · ${manifest.task_count} 个镜头`, container);
+      const readyCount = manifest.tasks.filter(task => task.status === 'ready_for_prompt_review').length;
+      taskBoard.append(node('p', `可进入提示词人工复核：${readyCount}/${manifest.task_count}。本清单没有选择供应商，也不会自动生成图片。`, 'demo-note'));
+      manifest.tasks.forEach(task => {
+        const taskCard = disclosure(`${task.task_id} · ${task.status}`, taskBoard);
+        const references = task.character_reference_assets.length
+          ? task.character_reference_assets.map(asset => `${asset.character}：${asset.reference_status}`).join('；') : '本镜头无角色参考资产';
+        facts(taskCard, { ...task, references, output_file: task.output.relative_path },
+          { input_mode: '输入模式', duration_seconds: '镜头时长', references: '参考资产', output_file: '建议输出路径' });
+        taskCard.append(node('p', task.review.note, 'demo-note'));
+      });
     }
     const copy = button('复制本集 JSON', async () => {
       try { await navigator.clipboard.writeText(JSON.stringify(episode, null, 2)); $('copy-status').textContent = '本集已复制。'; }
