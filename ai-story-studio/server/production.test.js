@@ -177,6 +177,19 @@ test('legacy V0.2 episodes migrate to V1 without losing usable content', () => {
   const nopts = options(20, 'novel'), nplan = demo.demoSeries(nopts), novel = demo.demoEpisode(nplan, nopts, 1);
   assert.equal(C.normalizeEpisode(novel, nopts, nplan), novel);
 });
+test('duration normalization keeps AI pacing within bounds and derives scene durations', () => {
+  const opts = options(), plan = demo.demoSeries(opts), episode = demo.demoEpisode(plan, opts, 1);
+  episode.shot_list.forEach((shot, index) => { shot.duration = [1.5, 2, 4, 6, 8, 10][index % 6]; });
+  const normalized = C.normalizeEpisode(episode, opts, plan);
+  assert.equal(normalized.shot_list.reduce((sum, shot) => sum + shot.duration, 0), opts.duration);
+  assert.ok(normalized.shot_list.every(shot => shot.duration >= 1.5 && shot.duration <= 12));
+  for (const scene of normalized.scenes) {
+    const shotTotal = normalized.shot_list.filter(shot => shot.scene_number === scene.scene_number).reduce((sum, shot) => sum + shot.duration, 0);
+    assert.equal(scene.duration, shotTotal);
+  }
+  C.validateEpisode(normalized, opts, 1, plan);
+  assert.throws(() => C.normalizeShotDurations([{ duration: 4 }, { duration: 4 }, { duration: 4 }], 90), error => error.code === 'shot_duration_unachievable');
+});
 test('limits apply to new endpoints and cross-origin requests remain blocked', async () => {
   const opts = options(), plan = demo.demoSeries(opts), calls = [];
   await serve({ fetchImpl: provider(opts, calls) }, async url => {

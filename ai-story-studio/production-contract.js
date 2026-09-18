@@ -157,6 +157,34 @@
     }
     return lines.slice(0, 8);
   }
+  // The model supplies pacing, while timeline math stays local and reproducible. Work
+  // in deciseconds: that removes floating point tail drift and preserves 1.5–12s bounds.
+  function normalizeShotDurations(shots, targetDuration) {
+    const unit = 10, minimum = 15, maximum = 120;
+    const target = Math.round(targetDuration * unit);
+    if (!Array.isArray(shots) || !shots.length || !Number.isSafeInteger(target)
+      || target < shots.length * minimum || target > shots.length * maximum) {
+      throw new ContractError('shot_duration_unachievable', '镜头数量无法在单镜头时长限制内满足目标时长');
+    }
+    const values = shots.map(shot => Math.max(minimum, Math.min(maximum, Math.round(Number(shot?.duration) * unit))));
+    let difference = target - values.reduce((sum, value) => sum + value, 0);
+    // Give/take one decisecond at a time using the original durations as weights.
+    // The lowest adjusted-to-requested ratio wins, which preserves relative pacing.
+    const weights = shots.map(shot => Math.max(1, Math.round(Number(shot?.duration) * unit)));
+    const adjusted = Array(shots.length).fill(0);
+    while (difference !== 0) {
+      const direction = Math.sign(difference);
+      const candidates = values.map((value, index) => ({ value, index }))
+        .filter(({ value }) => direction > 0 ? value < maximum : value > minimum);
+      if (!candidates.length) throw new ContractError('shot_duration_unachievable', '镜头数量无法在单镜头时长限制内满足目标时长');
+      candidates.sort((a, b) => (adjusted[a.index] / weights[a.index]) - (adjusted[b.index] / weights[b.index]) || a.index - b.index);
+      const index = candidates[0].index;
+      values[index] += direction;
+      adjusted[index] += 1;
+      difference -= direction;
+    }
+    return shots.map((shot, index) => ({ ...shot, duration: values[index] / unit }));
+  }
   function normalizeEpisode(episode, options, bible) {
     if (!episode || typeof episode !== 'object' || options.type === 'novel') return episode;
     const normalized = { ...episode };
@@ -179,20 +207,8 @@
         characters: characters.slice(0, 6), purpose, duration, dialogue };
     });
     if (!scenes.length) return { ...normalized, scenes: [] };
-    const shotsByScene = new Map();
     const rawShots = Array.isArray(episode.shot_list) ? episode.shot_list : [];
-    for (const shot of rawShots) {
-      const owner = Number.isInteger(shot?.scene_number) ? shot.scene_number : (scenes[0]?.scene_number ?? 1);
-      shotsByScene.set(owner, (shotsByScene.get(owner) || 0) + (Number.isFinite(shot?.duration) ? shot.duration : 0));
-    }
-    for (const scene of scenes) {
-      if (!Number.isFinite(scene.duration)) {
-        const assigned = shotsByScene.get(scene.scene_number) || 0;
-        scene.duration = assigned > 0 ? Math.max(3, Math.round(assigned)) : options.duration;
-      }
-    }
-    normalized.scenes = scenes;
-    normalized.shot_list = rawShots.map((shot, index) => {
+    const mappedShots = rawShots.map((shot, index) => {
       const sceneNumber = Number.isInteger(shot?.scene_number) && scenes.some(scene => scene.scene_number === shot.scene_number)
         ? shot.scene_number : scenes[0].scene_number;
       const dialogueLine = Number.isInteger(shot?.dialogue_line) ? shot.dialogue_line : 0;
@@ -204,7 +220,13 @@
         duration: Number.isFinite(shot?.duration) ? shot.duration : 3,
         image_prompt: String(shot?.image_prompt ?? '').slice(0, 400), video_prompt: String(shot?.video_prompt ?? '').slice(0, 400) };
     });
+    normalized.shot_list = normalizeShotDurations(mappedShots, options.duration);
+    const shotsByScene = new Map();
+    for (const shot of normalized.shot_list) shotsByScene.set(shot.scene_number, (shotsByScene.get(shot.scene_number) || 0) + shot.duration);
+    // `scenes[].duration` is derived data, never an independent model estimate.
+    for (const scene of scenes) scene.duration = Math.round((shotsByScene.get(scene.scene_number) || 0) * 10) / 10;
+    normalized.scenes = scenes;
     return normalized;
   }
-  return { genres, types, bibleSchema, batchSchema, seriesSchema, episodeSchema, check, params, validateBible, validateSeries, validateEpisode, normalizeEpisode, ContractError };
+  return { genres, types, bibleSchema, batchSchema, seriesSchema, episodeSchema, check, params, validateBible, validateSeries, validateEpisode, normalizeShotDurations, normalizeEpisode, ContractError };
 });
