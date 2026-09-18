@@ -25,7 +25,7 @@ function setup(storage = new Map()) {
   radios.forEach(r => { r.group = radios; }); radios[0].checked = true;
   el('creator-form').querySelector = selector => selector.includes(':checked') ? radios.find(r => r.checked) : radios.find(r => selector.includes(r.value));
   el('creator-form').querySelectorAll = selector => selector === 'input[name="story-type"]' ? radios : [...radios, ...['story-idea', 'story-genre', 'episode-count', 'episode-duration', 'generation-mode', 'generate-button', 'legacy-button', 'clear-button', 'example-button'].map(el)];
-  el('production-results').append(...['series-overview', 'series-characters', 'series-props', 'series-arc', 'episode-list', 'episode-pagination', 'episode-workspace'].map(el));
+  el('production-results').append(...['series-overview', 'series-characters', 'series-props', 'reference-assets', 'series-arc', 'episode-list', 'episode-pagination', 'episode-workspace'].map(el));
   el('generation-mode').value = 'demo'; el('story-genre').value = '悬疑'; el('episode-count').value = '30'; el('episode-duration').value = '60';
   const window = { location: { href: 'https://static.test/', hostname: 'static.test' } };
   const sandbox = { window, console, URL, AbortController, DOMException, AbortSignal, setInterval, clearInterval,
@@ -71,15 +71,19 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   assert.ok(app.run('current.episodes[2]'));
   app.run('selectEpisode(2)'); assert.ok(app.el('episode-workspace').textContent.includes('旧稿'));
   await app.run('generateEpisode(3)'); assert.equal(app.run('current.episodeSources[3]'), 'outline');
+  const firstCharacter = app.run('current.data.characters[0].name');
+  app.run(`updateReferenceAsset(${JSON.stringify(firstCharacter)}, { filename: 'lead-reference.png', approved: true })`);
   const productionPack = app.run('window.ProductionView.buildEpisodeProductionPack(current)');
   assert.equal(productionPack.format, 'ai-story-studio/episode-production-pack/v1');
-  assert.ok(productionPack.character_anchors.every(anchor => anchor.reference_status === 'text_anchor_only'));
+  assert.equal(productionPack.character_anchors[0].asset_id, 'character_01');
+  assert.equal(productionPack.character_anchors[0].reference_file, 'lead-reference.png');
+  assert.equal(productionPack.character_anchors[0].reference_status, 'approved_reference');
   assert.equal(productionPack.source.stale, false);
   if (type !== 'novel') {
     assert.equal(productionPack.shots.reduce((sum, shot) => sum + shot.duration, 0), duration);
     for (const scene of productionPack.scenes) assert.equal(scene.duration, productionPack.shots.filter(shot => shot.scene_number === scene.scene_number).reduce((sum, shot) => sum + shot.duration, 0));
     assert.equal(productionPack.reference_readiness.visual_generation_ready, false);
-    assert.deepEqual([...productionPack.reference_readiness.missing_approved_references].sort(), [...productionPack.reference_readiness.active_characters].sort());
+    assert.ok(!productionPack.reference_readiness.missing_approved_references.includes(firstCharacter));
     for (const shot of productionPack.shots) {
       const scene = productionPack.scenes.find(item => item.scene_number === shot.scene_number);
       assert.deepEqual([...shot.characters], [...scene.characters]);

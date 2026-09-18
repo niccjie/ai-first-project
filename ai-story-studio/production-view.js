@@ -19,14 +19,19 @@ window.ProductionView = (() => {
     detail.append(node('summary', title)); parent.append(detail); return detail;
   }
   function button(text, action) { const el = node('button', text, 'copy-button'); el.type = 'button'; el.addEventListener('click', action); return el; }
+  function referenceAsset(character, index, stored) {
+    const saved = stored?.[character.name] || {};
+    const filename = typeof saved.filename === 'string' ? saved.filename : '';
+    return { asset_id: `character_${String(index + 1).padStart(2, '0')}`, name: character.name,
+      visual_identity: character.visual_identity, reference_file: filename || null,
+      reference_status: filename ? (saved.approved ? 'approved_reference' : 'pending_review') : 'missing_reference' };
+  }
+  function referenceAssets(plan, stored) { return plan.characters.map((character, index) => referenceAsset(character, index, stored)); }
   function buildEpisodeProductionPack(record) {
     const episode = record?.episodes?.[record.selectedEpisode];
     if (!episode) throw Error('请先生成并选择一集，再导出生产包。');
     const plan = record.data;
-    const characters = new Map(plan.characters.map(character => [character.name, {
-      name: character.name, visual_identity: character.visual_identity,
-      reference_image: null, reference_status: 'text_anchor_only'
-    }]));
+    const characters = new Map(referenceAssets(plan, record.referenceAssets).map(asset => [asset.name, asset]));
     const anchorsFor = names => (names || []).map(name => characters.get(name)).filter(Boolean);
     const scenes = (episode.scenes || []).map(scene => ({
       scene_number: scene.scene_number, location: scene.location, time: scene.time,
@@ -76,6 +81,18 @@ window.ProductionView = (() => {
     $('series-characters').replaceChildren();
     plan.characters.forEach(character => facts(disclosure(character.name + ' · ' + character.identity, $('series-characters')), character,
       { age: '年龄', personality: '性格', motivation: '动机', weakness: '弱点', secret: '秘密', relationship: '人物关系', visual_identity: '外观标识' }));
+    const assets = $('reference-assets'); assets.replaceChildren();
+    referenceAssets(plan, record.referenceAssets).forEach(asset => {
+      const card = disclosure(`${asset.asset_id} · ${asset.name} · ${asset.reference_status}`, assets);
+      facts(card, asset, { reference_file: '参考图文件', visual_identity: '外观锚点', reference_status: '审核状态' });
+      const picker = node('input'); picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp';
+      picker.addEventListener('change', event => {
+        const file = event.target.files?.[0]; if (file) actions.updateReference(asset.name, { filename: file.name, approved: false });
+      });
+      const approval = button(asset.reference_status === 'approved_reference' ? '取消审核' : '标为已审核', () => actions.updateReference(asset.name, { approved: asset.reference_status !== 'approved_reference' }));
+      approval.disabled = !asset.reference_file;
+      card.append(picker, approval);
+    });
     const props = $('series-props'); props.replaceChildren();
     if (plan.props.length) plan.props.forEach(prop => facts(disclosure(`${prop.name} · ${prop.category}`, props), prop,
       { owner: '归属', visual_identity: '外观标识', story_function: '剧情作用', status: '当前状态' }));

@@ -41,7 +41,7 @@ function showRecord(record) {
   $('#legacy-results').hidden = isSeries;
   $('#regenerate-button').textContent = isSeries ? '重新生成整季 ↻' : '重新生成 ↻';
   if (isSeries) {
-    window.ProductionView.render(record, { generate: generateEpisode, select: selectEpisode });
+    window.ProductionView.render(record, { generate: generateEpisode, select: selectEpisode, updateReference: updateReferenceAsset });
   } else {
   // All model output and user input are rendered as plain text, never HTML.
   $('#story-title').textContent = data.title;
@@ -172,7 +172,23 @@ function validRecord(record) {
   if (!Number.isInteger(record.selectedEpisode) || record.selectedEpisode < 1 || record.selectedEpisode > options.total_episodes) record.selectedEpisode = 1;
   record.staleEpisodes = Array.isArray(record.staleEpisodes) ? record.staleEpisodes.filter(n => Number.isInteger(n) && n >= 1 && n <= options.total_episodes) : [];
   record.episodeSources = record.episodeSources && typeof record.episodeSources === 'object' && !Array.isArray(record.episodeSources) ? record.episodeSources : {};
+  const knownCharacters = new Set(record.data.characters.map(character => character.name));
+  const assets = record.referenceAssets && typeof record.referenceAssets === 'object' && !Array.isArray(record.referenceAssets) ? record.referenceAssets : {};
+  record.referenceAssets = Object.fromEntries(Object.entries(assets).flatMap(([name, asset]) => {
+    if (!knownCharacters.has(name) || !asset || typeof asset !== 'object') return [];
+    const filename = typeof asset.filename === 'string' && asset.filename.length <= 160 && !/[\\/]/.test(asset.filename) ? asset.filename : '';
+    return [[name, { filename, approved: filename ? asset.approved === true : false }]];
+  }));
   return true;
+}
+function updateReferenceAsset(name, patch) {
+  if (busy || current?.kind !== 'series' || !current.data.characters.some(character => character.name === name)) return;
+  const previous = current.referenceAssets?.[name] || { filename: '', approved: false };
+  const filename = typeof patch.filename === 'string' && patch.filename.length <= 160 && !/[\\/]/.test(patch.filename) ? patch.filename : previous.filename;
+  current.referenceAssets ||= {};
+  current.referenceAssets[name] = { filename, approved: filename ? Boolean(patch.approved ?? previous.approved) : false };
+  showRecord(current); saveRecord(current);
+  status.textContent = `已更新 ${name} 的参考资产元数据；请将该图片与导出的生产包放在同一文件夹。`;
 }
 async function generateSeries() {
   if (busy) return;
@@ -185,7 +201,7 @@ async function generateSeries() {
   await productionTask(async signal => {
     const data = await window.ProductionAPI.createSeries(options, mode, signal);
     const record = { kind: 'series', idea: options.idea, type: options.type, mode, options, data,
-      time: new Date().toISOString(), episodes: {}, selectedEpisode: 1, episodeSources: {}, staleEpisodes: [] };
+      time: new Date().toISOString(), episodes: {}, selectedEpisode: 1, episodeSources: {}, staleEpisodes: [], referenceAssets: {} };
     showRecord(record); saveRecord(record);
     status.textContent = `${mode === 'demo' ? 'Demo 整季模板' : '整季策划'}已完成，共 ${options.total_episodes} 集。现在可选择一集生成正文。`;
     $('#output-title').focus();
