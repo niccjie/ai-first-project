@@ -100,7 +100,14 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
       assert.deepEqual(shot.character_anchors.map(anchor => ({ name: anchor.name, visual_identity: anchor.visual_identity })), scene.character_anchors.map(anchor => ({ name: anchor.name, visual_identity: anchor.visual_identity })));
     }
   }
-  if (type === 'novel') assert.equal(productionPack.frame_generation_manifest.tasks.length, 0);
+  if (type === 'novel') {
+    assert.equal(productionPack.frame_generation_manifest.tasks.length, 0);
+    assert.equal(productionPack.reference_readiness.visual_generation_ready, false);
+    assert.equal(productionPack.reference_readiness.reason, '小说模式不生成镜头首帧任务。');
+    assert.equal(productionPack.chapter_writing_manifest.status, 'draft_ready_for_human_review');
+    assert.equal(productionPack.chapter_writing_manifest.output.relative_path, 'chapters/chapter_003.md');
+    assert.ok(app.el('episode-workspace').textContent.includes('章节交接清单'));
+  } else assert.equal(productionPack.chapter_writing_manifest, null);
   // Changing the form does not alter a saved season's production parameters.
   app.el('episode-duration').value = '60';
   if (type !== 'novel') assert.equal(app.run('current.episodes[3].shot_list.reduce((sum,s)=>sum+s.duration,0)'), duration);

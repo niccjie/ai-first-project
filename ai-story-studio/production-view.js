@@ -49,6 +49,19 @@ window.ProductionView = (() => {
         note: readiness ? '可选择图像供应商后进行人工提示词复核。' : '先审核本镜头出场角色的参考资产；不会自动请求图像模型。' }
     };
   }
+  function chapterWritingManifest(record, episode) {
+    if (record.type !== 'novel') return null;
+    const number = String(episode.episode_number).padStart(3, '0');
+    return {
+      format: 'ai-story-studio/chapter-writing-manifest/v1', chapter_number: episode.episode_number,
+      status: 'draft_ready_for_human_review',
+      input: { title: episode.title, opening_hook: episode.opening_hook, twist: episode.twist,
+        cliffhanger: episode.cliffhanger, continuity_summary: episode.continuity_summary },
+      output: { filename: `chapter_${number}.md`, relative_path: `chapters/chapter_${number}.md` },
+      review: { prose_review_required: true, continuity_review_required: true,
+        note: '正文为草稿；确认连续性摘要与下一章衔接后再定稿。' }
+    };
+  }
   function buildEpisodeProductionPack(record) {
     const episode = record?.episodes?.[record.selectedEpisode];
     if (!episode) throw Error('请先生成并选择一集，再导出生产包。');
@@ -70,7 +83,8 @@ window.ProductionView = (() => {
       character_anchors: sceneByNumber.get(shot.scene_number)?.character_anchors || [],
       image_prompt: shot.image_prompt, video_prompt: shot.video_prompt
     }));
-    const visualReady = missingApprovedReferences.length === 0;
+    const visualReady = record.type !== 'novel' && missingApprovedReferences.length === 0;
+    const chapterManifest = chapterWritingManifest(record, episode);
     return {
       format: 'ai-story-studio/episode-production-pack/v1',
       source: { title: plan.title, type: record.type, mode: record.mode, episode_number: episode.episode_number,
@@ -86,11 +100,12 @@ window.ProductionView = (() => {
         chapter_text: episode.chapter_text || null },
       reference_readiness: { visual_generation_ready: visualReady,
         active_characters: activeCharacters, missing_approved_references: missingApprovedReferences,
-        reason: missingApprovedReferences.length ? '仍缺少已审核的角色参考资产。' : '所有出场角色均已有已审核参考资产。' },
+        reason: record.type === 'novel' ? '小说模式不生成镜头首帧任务。' : missingApprovedReferences.length ? '仍缺少已审核的角色参考资产。' : '所有出场角色均已有已审核参考资产。' },
       scenes,
       shots,
       frame_generation_manifest: { format: 'ai-story-studio/frame-generation-manifest/v1', provider: null,
         generation_requested: false, task_count: shots.length, tasks: shots.map(shot => frameTask(shot, visualReady)) },
+      chapter_writing_manifest: chapterManifest,
       continuity_notes: ['每个镜头使用其场景角色锚点，并保持服装、标志物与时间地点一致。', '正式图像或视频生成前，所有出场角色都必须有已审核参考资产。', '参考资产仅在本地项目或与生产包同一文件夹中管理，不会上传到服务端。']
     };
   }
@@ -163,6 +178,11 @@ window.ProductionView = (() => {
     if (record.type === 'novel') {
       facts(container, episode, { opening_hook: '开场钩子', pacing: '节奏节点', twist: '本集反转', cliffhanger: '结尾悬念', continuity_summary: '连续性摘要' });
       container.append(node('h4', '章节正文'), node('p', episode.chapter_text, 'chapter-text'));
+      const manifest = buildEpisodeProductionPack(record).chapter_writing_manifest;
+      const chapterTask = disclosure(`章节交接清单 · ${manifest.status}`, container);
+      facts(chapterTask, { ...manifest.input, output_file: manifest.output.relative_path },
+        { opening_hook: '开场钩子', twist: '本章反转', cliffhanger: '结尾悬念', continuity_summary: '连续性摘要', output_file: '建议输出路径' });
+      chapterTask.append(node('p', manifest.review.note, 'demo-note'));
     } else {
       // V1 field mapping: scenes own place/cast/purpose/dialogue, shots own framing,
       // action and timing. `dialogue_line` points at a line in the owning scene.
