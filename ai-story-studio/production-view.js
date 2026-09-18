@@ -19,11 +19,16 @@ window.ProductionView = (() => {
     detail.append(node('summary', title)); parent.append(detail); return detail;
   }
   function button(text, action) { const el = node('button', text, 'copy-button'); el.type = 'button'; el.addEventListener('click', action); return el; }
+  const bundledReferencePaths = Object.freeze({
+    'character_01-lin-ran.png': 'assets/references/character_01-lin-ran.png',
+    'character_02-xu-zhi.png': 'assets/references/character_02-xu-zhi.png'
+  });
   function referenceAsset(character, index, stored) {
     const saved = stored?.[character.name] || {};
     const filename = typeof saved.filename === 'string' ? saved.filename : '';
     return { asset_id: `character_${String(index + 1).padStart(2, '0')}`, name: character.name,
       visual_identity: character.visual_identity, reference_file: filename || null,
+      preview_path: bundledReferencePaths[filename] || null,
       reference_status: filename ? (saved.approved ? 'approved_reference' : 'pending_review') : 'missing_reference' };
   }
   function referenceAssets(plan, stored) { return plan.characters.map((character, index) => referenceAsset(character, index, stored)); }
@@ -65,7 +70,7 @@ window.ProductionView = (() => {
         character_anchors: sceneByNumber.get(shot.scene_number)?.character_anchors || [],
         image_prompt: shot.image_prompt, video_prompt: shot.video_prompt
       })),
-      continuity_notes: ['所有角色仅提供文本锚点，尚未附带参考图。', '正式图像或视频生成前，应为每个主要角色建立并审核参考图。', '每个镜头使用其场景角色锚点，并保持服装、标志物与时间地点一致。']
+      continuity_notes: ['每个镜头使用其场景角色锚点，并保持服装、标志物与时间地点一致。', '正式图像或视频生成前，所有出场角色都必须有已审核参考资产。', '参考资产仅在本地项目或与生产包同一文件夹中管理，不会上传到服务端。']
     };
   }
   function downloadJSON(filename, payload) {
@@ -82,9 +87,16 @@ window.ProductionView = (() => {
     plan.characters.forEach(character => facts(disclosure(character.name + ' · ' + character.identity, $('series-characters')), character,
       { age: '年龄', personality: '性格', motivation: '动机', weakness: '弱点', secret: '秘密', relationship: '人物关系', visual_identity: '外观标识' }));
     const assets = $('reference-assets'); assets.replaceChildren();
-    referenceAssets(plan, record.referenceAssets).forEach(asset => {
+    const characterAssets = referenceAssets(plan, record.referenceAssets);
+    const approvedCount = characterAssets.filter(asset => asset.reference_status === 'approved_reference').length;
+    assets.append(node('p', `已审核 ${approvedCount}/${characterAssets.length} 个角色参考资产；待审核资产不会进入可生成状态。`, 'demo-note'));
+    characterAssets.forEach(asset => {
       const card = disclosure(`${asset.asset_id} · ${asset.name} · ${asset.reference_status}`, assets);
       facts(card, asset, { reference_file: '参考图文件', visual_identity: '外观锚点', reference_status: '审核状态' });
+      if (asset.preview_path) {
+        const preview = node('img'); preview.className = 'reference-preview'; preview.src = asset.preview_path;
+        preview.alt = `${asset.name} 角色参考图`; card.append(preview);
+      } else if (asset.reference_file) card.append(node('p', '此文件仅记录名称；将它与导出的生产包放在同一文件夹后再交给生成工具。', 'demo-note'));
       const picker = node('input'); picker.type = 'file'; picker.accept = 'image/png,image/jpeg,image/webp';
       picker.addEventListener('change', event => {
         const file = event.target.files?.[0]; if (file) actions.updateReference(asset.name, { filename: file.name, approved: false });

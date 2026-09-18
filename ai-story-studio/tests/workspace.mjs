@@ -51,6 +51,8 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   assert.equal(app.el('episode-list').children.length, 10);
   assert.equal(app.el('episode-pagination').children[0].disabled, true);
   assert.ok(app.el('series-overview').textContent.includes('<script>'));
+  assert.equal(app.el('reference-assets').querySelectorAll('img').length, 2, 'bundled demo references render as local previews');
+  assert.ok(app.el('reference-assets').textContent.includes('已审核 0/2'), 'new references stay pending until a reviewer approves them');
   await app.el('episode-pagination').children[2].trigger('click');
   assert.ok(app.el('episode-list').children[0].textContent.includes('11'));
   await app.run('generateEpisode(1)'); await app.run('generateEpisode(2)');
@@ -73,6 +75,7 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   await app.run('generateEpisode(3)'); assert.equal(app.run('current.episodeSources[3]'), 'outline');
   const firstCharacter = app.run('current.data.characters[0].name');
   app.run(`updateReferenceAsset(${JSON.stringify(firstCharacter)}, { filename: 'lead-reference.png', approved: true })`);
+  assert.equal(app.el('reference-assets').querySelectorAll('img').length, 1, 'only bundled project-relative assets may render a preview after rerendering');
   const productionPack = app.run('window.ProductionView.buildEpisodeProductionPack(current)');
   assert.equal(productionPack.format, 'ai-story-studio/episode-production-pack/v1');
   assert.equal(productionPack.character_anchors[0].asset_id, 'character_01');

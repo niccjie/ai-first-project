@@ -143,6 +143,7 @@ footer { display: flex; justify-content: space-between; gap: 20px; padding: 24px
 .production-detail summary { cursor: pointer; font-size: .85rem; font-weight: 600; overflow-wrap: anywhere; line-height: 1.8; }
 .production-detail[open] > summary { margin-bottom: 12px; }
 .production-detail .production-detail { background: var(--card); }
+.reference-preview { display: block; width: min(100%, 190px); aspect-ratio: 4 / 5; object-fit: cover; margin: 14px 0; border: 1px solid var(--line); border-radius: 8px; background: #eeeee7; }
 .chapter-text { white-space: pre-wrap; line-height: 2.1 !important; }
 #episode-pagination { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin-top: 18px; }
 #episode-pagination span { font-size: .75rem; color: var(--muted); }
