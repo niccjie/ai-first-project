@@ -82,17 +82,23 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   assert.equal(productionPack.character_anchors[0].reference_file, 'lead-reference.png');
   assert.equal(productionPack.character_anchors[0].reference_status, 'approved_reference');
   assert.equal(productionPack.source.stale, false);
+  assert.equal(productionPack.frame_generation_manifest.provider, null);
+  assert.equal(productionPack.frame_generation_manifest.generation_requested, false);
+  assert.equal(productionPack.frame_generation_manifest.task_count, productionPack.shots.length);
   if (type !== 'novel') {
     assert.equal(productionPack.shots.reduce((sum, shot) => sum + shot.duration, 0), duration);
     for (const scene of productionPack.scenes) assert.equal(scene.duration, productionPack.shots.filter(shot => shot.scene_number === scene.scene_number).reduce((sum, shot) => sum + shot.duration, 0));
     assert.equal(productionPack.reference_readiness.visual_generation_ready, false);
     assert.ok(!productionPack.reference_readiness.missing_approved_references.includes(firstCharacter));
+    assert.ok(productionPack.frame_generation_manifest.tasks.every(task => task.status === 'blocked_reference_review'));
+    assert.ok(productionPack.frame_generation_manifest.tasks.every(task => task.output.relative_path.startsWith('assets/generated/episode-keyframes/')));
     for (const shot of productionPack.shots) {
       const scene = productionPack.scenes.find(item => item.scene_number === shot.scene_number);
       assert.deepEqual([...shot.characters], [...scene.characters]);
       assert.deepEqual(shot.character_anchors.map(anchor => ({ name: anchor.name, visual_identity: anchor.visual_identity })), scene.character_anchors.map(anchor => ({ name: anchor.name, visual_identity: anchor.visual_identity })));
     }
   }
+  if (type === 'novel') assert.equal(productionPack.frame_generation_manifest.tasks.length, 0);
   // Changing the form does not alter a saved season's production parameters.
   app.el('episode-duration').value = '60';
   if (type !== 'novel') assert.equal(app.run('current.episodes[3].shot_list.reduce((sum,s)=>sum+s.duration,0)'), duration);

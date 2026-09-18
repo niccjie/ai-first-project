@@ -32,6 +32,23 @@ window.ProductionView = (() => {
       reference_status: filename ? (saved.approved ? 'approved_reference' : 'pending_review') : 'missing_reference' };
   }
   function referenceAssets(plan, stored) { return plan.characters.map((character, index) => referenceAsset(character, index, stored)); }
+  function frameTask(shot, readiness) {
+    const number = String(shot.shot_number).padStart(3, '0');
+    const references = (shot.character_anchors || []).map(anchor => ({
+      character: anchor.name, reference_file: anchor.reference_file,
+      reference_status: anchor.reference_status
+    }));
+    return {
+      task_id: `shot_${number}_keyframe`, shot_number: shot.shot_number,
+      status: readiness ? 'ready_for_prompt_review' : 'blocked_reference_review',
+      input_mode: references.length ? 'reference_guided_after_approval' : 'text_only',
+      duration_seconds: shot.duration, image_prompt: shot.image_prompt,
+      character_reference_assets: references,
+      output: { filename: `shot_${number}_keyframe.png`, relative_path: `assets/generated/episode-keyframes/shot_${number}_keyframe.png`, aspect_ratio: '16:9' },
+      review: { prompt_review_required: true, references_approved: readiness,
+        note: readiness ? '可选择图像供应商后进行人工提示词复核。' : '先审核本镜头出场角色的参考资产；不会自动请求图像模型。' }
+    };
+  }
   function buildEpisodeProductionPack(record) {
     const episode = record?.episodes?.[record.selectedEpisode];
     if (!episode) throw Error('请先生成并选择一集，再导出生产包。');
@@ -46,6 +63,14 @@ window.ProductionView = (() => {
     const sceneByNumber = new Map(scenes.map(scene => [scene.scene_number, scene]));
     const activeCharacters = [...new Set(scenes.flatMap(scene => scene.characters))];
     const missingApprovedReferences = activeCharacters.filter(name => characters.get(name)?.reference_status !== 'approved_reference');
+    const shots = (episode.shot_list || []).map(shot => ({
+      shot_number: shot.shot_number, scene_number: shot.scene_number, duration: shot.duration,
+      shot_type: shot.shot_type, visual: shot.visual, action: shot.action, dialogue_line: shot.dialogue_line,
+      characters: sceneByNumber.get(shot.scene_number)?.characters || [],
+      character_anchors: sceneByNumber.get(shot.scene_number)?.character_anchors || [],
+      image_prompt: shot.image_prompt, video_prompt: shot.video_prompt
+    }));
+    const visualReady = missingApprovedReferences.length === 0;
     return {
       format: 'ai-story-studio/episode-production-pack/v1',
       source: { title: plan.title, type: record.type, mode: record.mode, episode_number: episode.episode_number,
@@ -59,17 +84,13 @@ window.ProductionView = (() => {
       episode: { title: episode.title, opening_hook: episode.opening_hook, twist: episode.twist,
         cliffhanger: episode.cliffhanger, continuity_summary: episode.continuity_summary,
         chapter_text: episode.chapter_text || null },
-      reference_readiness: { visual_generation_ready: missingApprovedReferences.length === 0,
+      reference_readiness: { visual_generation_ready: visualReady,
         active_characters: activeCharacters, missing_approved_references: missingApprovedReferences,
         reason: missingApprovedReferences.length ? '仍缺少已审核的角色参考资产。' : '所有出场角色均已有已审核参考资产。' },
       scenes,
-      shots: (episode.shot_list || []).map(shot => ({
-        shot_number: shot.shot_number, scene_number: shot.scene_number, duration: shot.duration,
-        shot_type: shot.shot_type, visual: shot.visual, action: shot.action, dialogue_line: shot.dialogue_line,
-        characters: sceneByNumber.get(shot.scene_number)?.characters || [],
-        character_anchors: sceneByNumber.get(shot.scene_number)?.character_anchors || [],
-        image_prompt: shot.image_prompt, video_prompt: shot.video_prompt
-      })),
+      shots,
+      frame_generation_manifest: { format: 'ai-story-studio/frame-generation-manifest/v1', provider: null,
+        generation_requested: false, task_count: shots.length, tasks: shots.map(shot => frameTask(shot, visualReady)) },
       continuity_notes: ['每个镜头使用其场景角色锚点，并保持服装、标志物与时间地点一致。', '正式图像或视频生成前，所有出场角色都必须有已审核参考资产。', '参考资产仅在本地项目或与生产包同一文件夹中管理，不会上传到服务端。']
     };
   }
@@ -166,7 +187,7 @@ window.ProductionView = (() => {
       try { await navigator.clipboard.writeText(JSON.stringify(episode, null, 2)); $('copy-status').textContent = '本集已复制。'; }
       catch { const range = document.createRange(); range.selectNodeContents(container); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); $('copy-status').textContent = '已选中本集，请使用系统复制。'; }
     });
-    const pack = button(record.type === 'novel' ? '下载本章生产包' : '下载本集生产包', () => {
+    const pack = button(record.type === 'novel' ? '下载本章生产包' : '下载本集生产包（含首帧清单）', () => {
       const payload = buildEpisodeProductionPack(record);
       const name = `${String(episode.episode_number).padStart(2, '0')}-${episode.title}`.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
       downloadJSON(`${name}-production-pack.json`, payload);
