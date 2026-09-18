@@ -71,6 +71,13 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   assert.ok(app.run('current.episodes[2]'));
   app.run('selectEpisode(2)'); assert.ok(app.el('episode-workspace').textContent.includes('旧稿'));
   await app.run('generateEpisode(3)'); assert.equal(app.run('current.episodeSources[3]'), 'outline');
+  const productionPack = app.run('window.ProductionView.buildEpisodeProductionPack(current)');
+  assert.equal(productionPack.format, 'ai-story-studio/episode-production-pack/v1');
+  assert.ok(productionPack.character_anchors.every(anchor => anchor.reference_status === 'text_anchor_only'));
+  if (type !== 'novel') {
+    assert.equal(productionPack.shots.reduce((sum, shot) => sum + shot.duration, 0), duration);
+    for (const scene of productionPack.scenes) assert.equal(scene.duration, productionPack.shots.filter(shot => shot.scene_number === scene.scene_number).reduce((sum, shot) => sum + shot.duration, 0));
+  }
   // Changing the form does not alter a saved season's production parameters.
   app.el('episode-duration').value = '60';
   if (type !== 'novel') assert.equal(app.run('current.episodes[3].shot_list.reduce((sum,s)=>sum+s.duration,0)'), duration);

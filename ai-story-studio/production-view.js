@@ -19,6 +19,48 @@ window.ProductionView = (() => {
     detail.append(node('summary', title)); parent.append(detail); return detail;
   }
   function button(text, action) { const el = node('button', text, 'copy-button'); el.type = 'button'; el.addEventListener('click', action); return el; }
+  function buildEpisodeProductionPack(record) {
+    const episode = record?.episodes?.[record.selectedEpisode];
+    if (!episode) throw Error('请先生成并选择一集，再导出生产包。');
+    const plan = record.data;
+    const characters = new Map(plan.characters.map(character => [character.name, {
+      name: character.name, visual_identity: character.visual_identity,
+      reference_image: null, reference_status: 'text_anchor_only'
+    }]));
+    const anchorsFor = names => (names || []).map(name => characters.get(name)).filter(Boolean);
+    const scenes = (episode.scenes || []).map(scene => ({
+      scene_number: scene.scene_number, location: scene.location, time: scene.time,
+      purpose: scene.purpose, duration: scene.duration, characters: scene.characters,
+      character_anchors: anchorsFor(scene.characters), dialogue: scene.dialogue
+    }));
+    const sceneByNumber = new Map(scenes.map(scene => [scene.scene_number, scene]));
+    return {
+      format: 'ai-story-studio/episode-production-pack/v1',
+      source: { title: plan.title, type: record.type, mode: record.mode, episode_number: episode.episode_number,
+        target_duration_seconds: record.options.duration, source_created_at: record.time },
+      // Text anchors are useful for prompt review, but are not reference images and cannot
+      // guarantee identity consistency by themselves.
+      character_anchors: [...characters.values()],
+      prop_anchors: (plan.props || []).map(prop => ({ name: prop.name, category: prop.category, owner: prop.owner,
+        visual_identity: prop.visual_identity, status: prop.status })),
+      episode: { title: episode.title, opening_hook: episode.opening_hook, twist: episode.twist,
+        cliffhanger: episode.cliffhanger, continuity_summary: episode.continuity_summary,
+        chapter_text: episode.chapter_text || null },
+      scenes,
+      shots: (episode.shot_list || []).map(shot => ({
+        shot_number: shot.shot_number, scene_number: shot.scene_number, duration: shot.duration,
+        shot_type: shot.shot_type, visual: shot.visual, action: shot.action, dialogue_line: shot.dialogue_line,
+        character_anchors: sceneByNumber.get(shot.scene_number)?.characters || [],
+        image_prompt: shot.image_prompt, video_prompt: shot.video_prompt
+      })),
+      continuity_notes: ['所有角色仅提供文本锚点，尚未附带参考图。', '正式图像或视频生成前，应为每个主要角色建立并审核参考图。', '每个镜头使用其场景角色锚点，并保持服装、标志物与时间地点一致。']
+    };
+  }
+  function downloadJSON(filename, payload) {
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json;charset=utf-8' });
+    const link = document.createElement('a'); link.href = URL.createObjectURL(blob); link.download = filename;
+    link.click(); URL.revokeObjectURL(link.href);
+  }
   function render(record, actions) {
     const plan = record.data;
     $('series-overview').replaceChildren(node('h4', plan.title));
@@ -88,7 +130,13 @@ window.ProductionView = (() => {
       try { await navigator.clipboard.writeText(JSON.stringify(episode, null, 2)); $('copy-status').textContent = '本集已复制。'; }
       catch { const range = document.createRange(); range.selectNodeContents(container); const selection = window.getSelection(); selection.removeAllRanges(); selection.addRange(range); $('copy-status').textContent = '已选中本集，请使用系统复制。'; }
     });
-    container.append(copy);
+    const pack = button(record.type === 'novel' ? '下载本章生产包' : '下载本集生产包', () => {
+      const payload = buildEpisodeProductionPack(record);
+      const name = `${String(episode.episode_number).padStart(2, '0')}-${episode.title}`.replace(/[\\/:*?"<>|]/g, '_').slice(0, 60);
+      downloadJSON(`${name}-production-pack.json`, payload);
+      $('copy-status').textContent = '本集生产包已下载。';
+    });
+    container.append(copy, pack);
   }
-  return { render, renderEpisode };
+  return { render, renderEpisode, buildEpisodeProductionPack };
 })();
