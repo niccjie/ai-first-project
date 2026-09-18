@@ -201,7 +201,9 @@ async function generateSeries() {
   await productionTask(async signal => {
     const data = await window.ProductionAPI.createSeries(options, mode, signal);
     const record = { kind: 'series', idea: options.idea, type: options.type, mode, options, data,
-      time: new Date().toISOString(), episodes: {}, selectedEpisode: 1, episodeSources: {}, staleEpisodes: [], referenceAssets: {} };
+      time: new Date().toISOString(), episodes: {}, selectedEpisode: 1, episodeSources: {}, staleEpisodes: [],
+      // Demo's checked-in reference sheets are deliberately pending human approval.
+      referenceAssets: mode === 'demo' ? { '林然': { filename: 'character_01-lin-ran.png', approved: false }, '许知': { filename: 'character_02-xu-zhi.png', approved: false } } : {} };
     showRecord(record); saveRecord(record);
     status.textContent = `${mode === 'demo' ? 'Demo 整季模板' : '整季策划'}已完成，共 ${options.total_episodes} 集。现在可选择一集生成正文。`;
     $('#output-title').focus();
