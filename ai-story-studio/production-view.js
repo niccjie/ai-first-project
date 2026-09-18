@@ -34,10 +34,13 @@ window.ProductionView = (() => {
       character_anchors: anchorsFor(scene.characters), dialogue: scene.dialogue
     }));
     const sceneByNumber = new Map(scenes.map(scene => [scene.scene_number, scene]));
+    const activeCharacters = [...new Set(scenes.flatMap(scene => scene.characters))];
+    const missingApprovedReferences = activeCharacters.filter(name => characters.get(name)?.reference_status !== 'approved_reference');
     return {
       format: 'ai-story-studio/episode-production-pack/v1',
       source: { title: plan.title, type: record.type, mode: record.mode, episode_number: episode.episode_number,
-        target_duration_seconds: record.options.duration, source_created_at: record.time },
+        target_duration_seconds: record.options.duration, source_created_at: record.time,
+        stale: Boolean(record.staleEpisodes?.includes(episode.episode_number)) },
       // Text anchors are useful for prompt review, but are not reference images and cannot
       // guarantee identity consistency by themselves.
       character_anchors: [...characters.values()],
@@ -46,11 +49,15 @@ window.ProductionView = (() => {
       episode: { title: episode.title, opening_hook: episode.opening_hook, twist: episode.twist,
         cliffhanger: episode.cliffhanger, continuity_summary: episode.continuity_summary,
         chapter_text: episode.chapter_text || null },
+      reference_readiness: { visual_generation_ready: missingApprovedReferences.length === 0,
+        active_characters: activeCharacters, missing_approved_references: missingApprovedReferences,
+        reason: missingApprovedReferences.length ? '仍缺少已审核的角色参考资产。' : '所有出场角色均已有已审核参考资产。' },
       scenes,
       shots: (episode.shot_list || []).map(shot => ({
         shot_number: shot.shot_number, scene_number: shot.scene_number, duration: shot.duration,
         shot_type: shot.shot_type, visual: shot.visual, action: shot.action, dialogue_line: shot.dialogue_line,
-        character_anchors: sceneByNumber.get(shot.scene_number)?.characters || [],
+        characters: sceneByNumber.get(shot.scene_number)?.characters || [],
+        character_anchors: sceneByNumber.get(shot.scene_number)?.character_anchors || [],
         image_prompt: shot.image_prompt, video_prompt: shot.video_prompt
       })),
       continuity_notes: ['所有角色仅提供文本锚点，尚未附带参考图。', '正式图像或视频生成前，应为每个主要角色建立并审核参考图。', '每个镜头使用其场景角色锚点，并保持服装、标志物与时间地点一致。']

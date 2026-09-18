@@ -74,9 +74,17 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   const productionPack = app.run('window.ProductionView.buildEpisodeProductionPack(current)');
   assert.equal(productionPack.format, 'ai-story-studio/episode-production-pack/v1');
   assert.ok(productionPack.character_anchors.every(anchor => anchor.reference_status === 'text_anchor_only'));
+  assert.equal(productionPack.source.stale, false);
   if (type !== 'novel') {
     assert.equal(productionPack.shots.reduce((sum, shot) => sum + shot.duration, 0), duration);
     for (const scene of productionPack.scenes) assert.equal(scene.duration, productionPack.shots.filter(shot => shot.scene_number === scene.scene_number).reduce((sum, shot) => sum + shot.duration, 0));
+    assert.equal(productionPack.reference_readiness.visual_generation_ready, false);
+    assert.deepEqual([...productionPack.reference_readiness.missing_approved_references].sort(), [...productionPack.reference_readiness.active_characters].sort());
+    for (const shot of productionPack.shots) {
+      const scene = productionPack.scenes.find(item => item.scene_number === shot.scene_number);
+      assert.deepEqual([...shot.characters], [...scene.characters]);
+      assert.deepEqual(shot.character_anchors.map(anchor => ({ name: anchor.name, visual_identity: anchor.visual_identity })), scene.character_anchors.map(anchor => ({ name: anchor.name, visual_identity: anchor.visual_identity })));
+    }
   }
   // Changing the form does not alter a saved season's production parameters.
   app.el('episode-duration').value = '60';
