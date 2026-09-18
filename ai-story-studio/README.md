@@ -86,14 +86,14 @@ type：drama / comic / novel。题材：悬疑、都市、校园、爱情、科�
 }
 ```
 
-返回共同字段：episode_number、title、opening_hook、pacing、twist、cliffhanger、continuity_summary。
+返回共同字段：episode_number、title、opening_hook、twist、cliffhanger、continuity_summary。
 
 短剧 / 漫画额外返回：
 
-- scenes：scene_number、location、time、characters（姓名数组）、action、dialogue。
-- voiceover：可复制的配音文本。
-- shot_list：shot_number、shot_type、visual、action、dialogue、duration（秒）、image_prompt、video_prompt。
-- 镜头总时长必须与作品目标时长一致（允许 1 秒舍入差），英文提示词不能含中文。
+- scenes：scene_number、location、time、characters（姓名数组）、purpose、duration（秒）、dialogue（`speaker` / `line` 对象数组）。场景时长由所属镜头自动重算。
+- shot_list：shot_number、scene_number、shot_type、visual、action、dialogue_line、duration（秒）、image_prompt、video_prompt。`dialogue_line` 为 0 时无对白，否则指向所属场景的第 N 句对白。
+- 单镜头时长为 1.5–12 秒。模型给出相对节奏后，本地以 0.1 秒单位归一化，使镜头总时长严格等于作品目标时长；镜头数量本身无法满足边界时会拒绝保存。
+- image_prompt 与 video_prompt 必须为英文，且每个 scene_number、人物名、对白引用均要通过本地校验。
 
 小说额外返回 `chapter_text`，没有强行套用场景脚本、分镜或配音字段。
 
@@ -111,7 +111,7 @@ type：drama / comic / novel。题材：悬疑、都市、校园、爱情、科�
 | index.html / style.css | 策划参数、人物与道具资产分区、折叠集数卡片、移动端布局 |
 | script.js | 新旧创作流程、状态、取消、历史兼容、旧稿标记 |
 | api.js | 保留旧版创作请求，不改原有适配逻辑 |
-| production-contract.js | 浏览器与服务端共用 JSON Schema、人物/道具资产、集数、阶段、单集结构校验 |
+| production-contract.js | 浏览器与服务端共用 JSON Schema、人物/道具资产、集数、阶段、单集结构校验与镜头时长归一化 |
 | production-api.js | 新接口请求、超时 / 取消及本地 Demo 模板 |
 | production-view.js | 人物 / 阶段折叠、10 集分页、单集与小说正文展示 |
 | server/server.js | 原有 Express 与 DeepSeek 生成路径，挂载新路由、共享限流 |
@@ -151,7 +151,7 @@ node ../tests/workspace.mjs
 ## 人工验收建议
 
 1. 先用 Demo + 短剧 + 30 集确认五个分区、精确 30 集、3 页列表，初始没有生成正文。
-2. 生成第 1、2 集，检查人物、配音、英文镜头提示词和总时长；查看模式是否正确标注 Demo。
+2. 生成第 1、2 集，检查人物、场景对白引用、英文镜头提示词和总时长；查看模式是否正确标注 Demo。
 3. 重生成第 1 集，确认第 2 集原文仍在但标为旧稿。更新第 2 集后继续生成第 3 集。
 4. 分别检查 20、50 集列表，切换漫画和小说；小说应隐藏时长并输出章节正文。
 5. 刷新恢复历史，复制整季及单集；点击旧版快速创作确认原功能还可用。
