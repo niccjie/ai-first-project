@@ -55,7 +55,17 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   assert.ok(app.el('episode-list').children[0].textContent.includes('11'));
   await app.run('generateEpisode(1)'); await app.run('generateEpisode(2)');
   assert.equal(app.run('current.episodeSources[2]'), 'script');
-  assert.ok(app.el('episode-workspace').textContent.includes(type === 'novel' ? '章节正文' : '配音文本'));
+  assert.ok(app.el('episode-workspace').textContent.includes(type === 'novel' ? '章节正文' : '场景目的'));
+  if (type !== 'novel') {
+    // V1 mapping: no pacing/voiceover blocks, shots show their owning scene and resolved line.
+    const workspace = app.el('episode-workspace').textContent;
+    assert.ok(!workspace.includes('节奏节点'), 'pacing must not be rendered');
+    assert.ok(!workspace.includes('配音文本'), 'voiceover must not be rendered');
+    assert.ok(workspace.includes('场景 1'), 'shots must show their scene');
+    assert.equal(app.run('current.episodes[1].voiceover'), undefined);
+    assert.equal(app.run('current.episodes[1].pacing'), undefined);
+    assert.ok(app.run('current.episodes[1].scenes[0].dialogue[0].speaker').length > 0);
+  }
   await app.run('generateEpisode(1)');
   assert.equal(app.run('current.staleEpisodes.includes(2)'), true);
   assert.ok(app.run('current.episodes[2]'));
@@ -76,4 +86,37 @@ for (const [count, type, duration] of [[20, 'drama', 30], [30, 'comic', 90], [50
   assert.equal(loaded.run('busy'), false);
   assert.ok(loaded.el('request-error').textContent.includes('取消'));
 }
-console.log('PASS: V0.2 workspace 20/30/50, three formats, paging, no eager scripts, episode generation, stale continuity, copy, history restore, cancel, and plain-text rendering.');
+// Legacy V0.2 history: an episode saved in the old shape must still load, be migrated in
+// memory, and render — without deleting the record and without rewriting localStorage.
+{
+  const source = setup();
+  source.el('story-idea').value = '旧历史兼容测试';
+  await source.run('generateSeries()');
+  const stored = JSON.parse([...source.storage.values()][0]);
+  const legacyEpisode = {
+    episode_number: 1, title: '旧稿标题', opening_hook: '旧钩子', twist: '旧反转', cliffhanger: '旧悬念',
+    continuity_summary: '旧连续性摘要', pacing: '旧节奏节点', voiceover: '旧旁白文本',
+    scenes: [{ scene_number: 1, location: '档案室', time: '夜晚', characters: [stored[0].data.characters[0].name],
+      action: '旧场景动作', dialogue: `${stored[0].data.characters[0].name}：“旧台词。”` }],
+    shot_list: Array.from({ length: 6 }, (_, i) => ({ shot_number: i + 1, shot_type: '中景', visual: `旧画面${i + 1}`,
+      action: `旧动作${i + 1}`, dialogue: '无对白', duration: stored[0].options.duration / 6,
+      image_prompt: `Legacy shot ${i + 1}, no text`, video_prompt: `Legacy shot ${i + 1}, static` }))
+  };
+  stored[0].episodes = { 1: legacyEpisode };
+  stored[0].selectedEpisode = 1;
+  const storage = new Map([['niccjie.studio.history.v3', JSON.stringify(stored)]]);
+  const app = setup(storage);
+  assert.equal(app.run('history.length'), 1, 'legacy record must not be dropped');
+  await app.el('history-list').children[0].children[0].trigger('click');
+  const migrated = app.run('current.episodes[1]');
+  assert.equal(migrated.pacing, undefined);
+  assert.equal(migrated.voiceover, undefined);
+  assert.equal(migrated.scenes[0].action, undefined);
+  assert.equal(migrated.scenes[0].purpose, '旧场景动作');
+  assert.equal(migrated.scenes[0].dialogue[0].line, '旧台词。');
+  assert.equal(typeof migrated.shot_list[0].scene_number, 'number');
+  assert.ok(app.el('episode-workspace').textContent.includes('场景目的'));
+  const raw = JSON.parse(storage.get('niccjie.studio.history.v3'));
+  assert.ok(raw[0].episodes['1'].voiceover, 'localStorage must keep the original legacy payload');
+}
+console.log('PASS: V0.2 workspace 20/30/50, three formats, paging, no eager scripts, episode generation, stale continuity, copy, history restore, cancel, plain-text rendering, and V0.2->V1 legacy history migration.');

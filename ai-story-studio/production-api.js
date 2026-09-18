@@ -31,20 +31,35 @@ window.ProductionAPI = (() => {
   function demoEpisode(series, options, number) {
     const outline = series.episode_outlines[number - 1];
     const name = series.characters[0].name;
+    const partner = (series.characters[1] || series.characters[0]).name;
     const common = { episode_number: number, title: outline.title, opening_hook: outline.opening_hook,
-      pacing: options.type === 'novel' ? '异常引入 → 对话推动 → 发现证据 → 章末悬念' : `0–3秒钩子，3–${Math.round(options.duration * .7)}秒调查与冲突，余下时间反转并承接下一集。`,
       twist: outline.twist, cliffhanger: outline.cliffhanger,
       continuity_summary: `第${number}集结束：${name}已确认本集线索。${outline.main_event} 未解决问题：${outline.cliffhanger}` };
     if (options.type === 'novel') return C.validateEpisode({ ...common, chapter_text: `${name}推开档案室的门，熟悉的尘土气息扑面而来。${outline.opening_hook}\n\n` +
       Array.from({ length: 5 }, (_, i) => `第${i + 1}页记录带来的疑问让${name}停下了脚步。窗外的光落在纸边，那些曾经看似无关的细节，正一点一点连接起来。“先别急着下结论。”伙伴提醒道。${name}点头，却没有放下手中的记录。眼前的证据让人想起多年前那个无法挽回的决定，而这一次，谁也不愿再轻易相信一个现成的答案。`).join('\n\n') + `\n\n${outline.twist}${outline.cliffhanger}` }, options, number, series);
+    // Shot count derives from the per-shot duration ceiling so every shot stays within 1.5-12s.
+    const perScene = Math.max(2, Math.ceil(options.duration / 12));
+    const shotCount = perScene * 2;
+    const shotDuration = options.duration / shotCount;
+    const shotTypes = ['极特写', '中景', '特写', '过肩', '近景', '远景'];
+    const shotVisuals = [`${name}的手指停在半空，屏幕上的字还在闪。`, `${name}把记录转向${partner}。`,
+      '腕表表面浮出不属于今天的日期。', `${name}的目光扫过纸页边缘。`, `${name}后退半步，撞到文件柜。`, '门外走廊的灯逐个熄灭。'];
+    const shotActions = ['屏幕出现不属于今天的记录', '两人核对同一条证据', '腕表亮起', '发现日期异常', '作出决定', '门外出现人影'];
     return C.validateEpisode({ ...common,
-      scenes: [{ scene_number: 1, location: '档案室', time: '夜晚', characters: [name], action: outline.main_event, dialogue: `${name}：“如果记录是真的，我们就必须查到底。”` }],
-      voiceover: `${outline.opening_hook}\n${name}：如果记录是真的，我们就必须查到底。\n${outline.twist}\n${outline.cliffhanger}`,
-      shot_list: Array.from({ length: 6 }, (_, i) => ({ shot_number: i + 1, shot_type: options.type === 'comic' ? `第${i + 1}格 / 近景` : ['特写', '中景', '过肩', '近景', '特写', '远景'][i],
-        visual: `${name}在档案室查看第${number}集的证据，保持人物 Bible 外观。`, action: ['腕表亮起', '翻开档案', '核对时间', '发现异常', '作出决定', '门外出现人影'][i],
-        dialogue: i === 3 ? `${name}：“这不可能是巧合。”` : '无对白', duration: options.duration / 6,
-        image_prompt: 'Cinematic illustration, slim young archivist, short black hair, narrow eyes, faint scar on left eyebrow, dark blue jacket, square silver wristwatch, dim archive room, consistent character, no text',
-        video_prompt: `Shot ${i + 1}, slow camera push toward the same slim archivist with short black hair, faint left eyebrow scar, dark blue jacket and square silver watch, turning a document page, subtle dramatic lighting, consistent face and clothing` }))
+      scenes: [
+        { scene_number: 1, location: '档案室', time: '夜晚', characters: [name, partner], purpose: '发现异常记录',
+          duration: options.duration / 2,
+          dialogue: [{ speaker: name, line: '这条记录不是今天写的。' }, { speaker: partner, line: '别碰它，先拍下来。' }] },
+        { scene_number: 2, location: '档案室走廊', time: '夜晚', characters: [name], purpose: '威胁逼近并留下悬念',
+          duration: options.duration / 2,
+          dialogue: [{ speaker: name, line: '谁把灯关了？' }] }
+      ],
+      shot_list: Array.from({ length: shotCount }, (_, i) => ({ shot_number: i + 1, scene_number: i < perScene ? 1 : 2,
+        shot_type: i < perScene ? '近景' : shotTypes[i % shotTypes.length],
+        visual: shotVisuals[i % shotVisuals.length].slice(0, 300), action: shotActions[i % shotActions.length].slice(0, 120),
+        dialogue_line: i === 1 ? 1 : i === Math.min(2, perScene - 1) ? 2 : i === perScene ? 1 : 0, duration: shotDuration,
+        image_prompt: 'Cinematic still, slim young archivist, short black hair, faint left eyebrow scar, dark blue jacket, square silver wristwatch, dim archive room, consistent face and clothing, no text',
+        video_prompt: `Shot ${i + 1}, slow camera push on the same archivist with short black hair and dark blue jacket, subtle dramatic lighting, consistent face and clothing` }))
     }, options, number, series);
   }
   function delay(signal) {
@@ -65,13 +80,26 @@ window.ProductionAPI = (() => {
     try {
       const response = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body), signal: controller.signal });
       const data = await response.json().catch(() => { throw Error('接口未返回有效 JSON，请通过本地服务打开页面。'); });
-      if (!response.ok) throw Error(typeof data.error === 'string' ? data.error : '生成失败，请稍后重试。');
+      if (!response.ok) throw Error(formatServerError(data));
       return data;
     } catch (error) {
       if (error.name === 'AbortError') throw Error(timedOut ? '请求超时，本次未保存。' : '已取消生成，保留原有内容。');
       if (error instanceof TypeError) throw Error('无法连接 AI 服务，请检查本地服务是否运行。');
       throw error;
     } finally { clearTimeout(timer); signal?.removeEventListener('abort', cancel); }
+  }
+  // Diagnostics only: surface the server-side stage/code/request_id so a failure can be
+  // located in server/logs/production-YYYYMMDD.ndjson. Values are short server labels.
+  function formatServerError(data) {
+    const base = typeof data?.error === 'string' ? data.error : '生成失败，请稍后重试。';
+    const label = value => typeof value === 'string' && value && value.length <= 64 ? value : null;
+    const code = label(data?.error_code), stage = label(data?.stage), requestId = label(data?.request_id);
+    if (!code && !stage && !requestId) return base;
+    const parts = [];
+    if (stage) parts.push(`错误阶段：${stage}`);
+    if (code) parts.push(`错误代码：${code}`);
+    if (requestId) parts.push(`请求 ID：${requestId}`);
+    return `${base}\n${parts.join('\n')}`;
   }
   async function createSeries(input, mode, signal) {
     const options = C.params(input);
@@ -82,7 +110,7 @@ window.ProductionAPI = (() => {
   async function createEpisode(record, number, signal) {
     if (record.mode === 'demo') { await delay(signal); return demoEpisode(record.data, record.options, number); }
     const data = await request('/api/create-episode', { options: record.options, series: record.data, episode_number: number, previous_episode: record.staleEpisodes.includes(number - 1) ? null : record.episodes[number - 1] || null }, signal);
-    return C.validateEpisode(data, record.options, number, record.data);
+    return C.validateEpisode(C.normalizeEpisode(data, record.options, record.data), record.options, number, record.data);
   }
   return { createSeries, createEpisode, demoSeries, demoEpisode };
 })();

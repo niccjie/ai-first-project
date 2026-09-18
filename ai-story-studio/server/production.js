@@ -1,18 +1,36 @@
 'use strict';
 const C = require('../production-contract');
 const { randomUUID } = require('node:crypto');
-const { upstreamError, responseDetails, writeDiagnostic } = require('./production-diagnostics');
-const fail = (status, message, reason) => Object.assign(new Error(message), { status, reason });
+const { upstreamError, responseDetails, writeDiagnostic, valueShape } = require('./production-diagnostics');
+const fail = (status, message, reason, extras = {}) => Object.assign(new Error(message), { status, reason }, extras);
+// Failure classification for a body that could not be parsed as JSON. Only structural
+// facts are derived here; the output text itself is never recorded or retained.
+function suspectedTruncation(text) {
+  if (typeof text !== 'string' || !text) return null;
+  const tail = text.trimEnd();
+  if (!tail) return false;
+  return !['}', ']', '"'].includes(tail.at(-1));
+}
+function parseErrorInfo(text, error) {
+  return {
+    output_text_length: typeof text === 'string' ? text.length : 0,
+    json_parse_error_type: error instanceof SyntaxError ? 'SyntaxError' : valueShape(error?.name) === 'string' ? error.name : 'Error',
+    json_parse_error_index: Number.isSafeInteger(error?.position) ? error.position : null,
+    suspected_truncation: suspectedTruncation(text)
+  };
+}
 
 // Retains the verified DeepSeek Responses URL, auth, request and response envelope.
-function mountProduction(app, { env, fetchImpl, acquire, timeoutMs = 90000, totalTimeoutMs = 540000, logger = writeDiagnostic }) {
+function mountProduction(app, { env, fetchImpl, acquire, timeoutMs = 90000, totalTimeoutMs = 540000, logger = writeDiagnostic } = {}) {
+  // The logger signature is unchanged; extra metadata is passed through the details object.
   const log = (context, event, details) => { try { logger({ ...context }, event, details); } catch { /* Logging must not break generation. */ } };
   function validateResult(context, validate, message) {
     try { return validate(); }
     catch (error) {
       // Only local contract validators reach here; their messages contain field paths, never values.
-      log(context, 'validation_failed', { reason: error.message });
-      throw fail(422, message, 'validation_failed');
+      const code = typeof error?.code === 'string' ? error.code : 'validation_failed';
+      log(context, 'validation_failed', { validation_error_code: code, reason: error.message });
+      throw fail(422, message, 'validation_failed', { errorCode: code });
     }
   }
   async function requestJSON(name, schema, instructions, input, signal, context) {
@@ -43,30 +61,33 @@ function mountProduction(app, { env, fetchImpl, acquire, timeoutMs = 90000, tota
         if (response.ok) throw fail(502, 'AI 服务返回了无法解析的响应，本次未保存。', 'response_json_invalid');
       }
       if (!response.ok) {
-        log(context, 'upstream_http_error', upstreamError(body?.error || body));
+        log(context, 'upstream_http_error', { ...upstreamError(body?.error || body), stage: name, http_status: context.http_status });
         throw fail([401, 429].includes(response.status) ? response.status : 502, 'DeepSeek 请求失败，请检查服务状态或稍后重试。', 'upstream_http_error');
       }
-      const details = responseDetails(body);
+      const content = body?.output?.flatMap(item => Array.isArray(item?.content) ? item.content : []) || [];
+      const outputText = content.filter(item => item?.type === 'output_text' && typeof item.text === 'string').map(item => item.text).join('');
+      // Length metadata is safe to persist; the text itself never is.
+      const details = responseDetails(body, { output_text_length: outputText.length });
       context.deepseek_status = details.deepseek_status;
       log(context, 'upstream_response', details);
       if (body?.status === 'incomplete') throw fail(422, '输出未完成，本次未保存。请稍后重试；不会自动发起额外付费请求。', details.incomplete_reason || 'incomplete_reason_missing');
       if (body?.status === 'failed') throw fail(502, 'AI 服务生成失败，本次未保存，请稍后重试。', 'upstream_failed');
       if (body?.status !== 'completed' || !Array.isArray(body.output)) throw fail(502, 'AI 服务响应状态或结构异常，本次未保存。', 'unexpected_response_envelope');
-      const content = body.output.flatMap(item => Array.isArray(item?.content) ? item.content : []);
       if (content.some(item => item?.type === 'refusal')) throw fail(422, '无法完成此创意，请调整内容。', 'refusal');
-      const outputText = content.filter(item => item?.type === 'output_text' && typeof item.text === 'string').map(item => item.text).join('');
       if (!outputText.trim()) throw fail(422, 'AI 未返回可用正文，本次未保存。', 'output_text_missing');
       let data;
       try { data = JSON.parse(outputText); }
-      catch {
-        // Native SyntaxError.message may quote private output. Never log it.
+      catch (error) {
+        // Native SyntaxError.message may quote private output. Only structural facts are logged.
+        log(context, 'output_json_invalid', parseErrorInfo(outputText, error));
         throw fail(422, 'AI 输出不符合结构要求，本次未保存，请重试。', 'output_json_invalid');
       }
       validateResult(context, () => C.check(data, schema), 'AI 输出不符合结构要求，本次未保存，请重试。');
-      log(context, 'request_complete', { elapsed_ms: Date.now() - started });
+      log(context, 'request_complete', { elapsed_ms: Date.now() - started, output_text_length: outputText.length });
       return data;
     } catch (error) {
-      log(context, 'request_failed', { reason: error.reason || (['AbortError', 'TimeoutError'].includes(error.name) ? 'timeout_or_cancelled' : 'connection_error'), elapsed_ms: Date.now() - started });
+      log(context, 'request_failed', { reason: error.reason || (['AbortError', 'TimeoutError'].includes(error.name) ? 'timeout_or_cancelled' : 'connection_error'),
+        error_code: error.reason || null, elapsed_ms: Date.now() - started });
       throw error;
     }
   }
@@ -74,7 +95,9 @@ function mountProduction(app, { env, fetchImpl, acquire, timeoutMs = 90000, tota
     app.post(path, async (req, res) => {
       if (!req.is('application/json')) return res.status(415).json({ error: '请发送 application/json。' });
       let input;
-      try { input = validate(req.body); } catch (error) { return res.status(400).json({ error: error.message }); }
+      try { input = validate(req.body); } catch (error) {
+        return res.status(400).json({ error: error.message, error_code: typeof error?.code === 'string' ? error.code : 'invalid_request', stage: 'input_validation' });
+      }
       if (!env.DEEPSEEK_API_KEY?.trim() || !env.DEEPSEEK_MODEL?.trim()) return res.status(503).json({ error: 'AI 服务未配置。' });
       const release = acquire();
       if (!release) return res.status(429).json({ error: '请求过于频繁，请稍后重试。' });
@@ -85,8 +108,11 @@ function mountProduction(app, { env, fetchImpl, acquire, timeoutMs = 90000, tota
       res.on('close', () => { if (!res.writableEnded) controller.abort(); });
       try { res.json(await produce(input, controller.signal, context)); log(context, 'generation_complete'); }
       catch (error) {
-        log(context, 'generation_failed', { reason: error.reason || (['AbortError', 'TimeoutError'].includes(error.name) ? 'timeout_or_cancelled' : 'generation_error'), retry: false });
-        if (!res.destroyed && !res.writableEnded) res.status(['AbortError', 'TimeoutError'].includes(error.name) ? 504 : error.status || 502).json({ error: ['AbortError', 'TimeoutError'].includes(error.name) ? '生成超时，本次未保存。可稍后重试。' : error.status ? error.message : 'AI 响应或连接异常，本次未保存。' });
+        const timedOut = ['AbortError', 'TimeoutError'].includes(error.name);
+        const reason = error.reason || (timedOut ? 'timeout_or_cancelled' : 'generation_error');
+        log(context, 'generation_failed', { reason, error_code: reason, stage: context.stage || null, retry: false });
+        if (!res.destroyed && !res.writableEnded) res.status(timedOut ? 504 : error.status || 502).json({ error: timedOut ? '生成超时，本次未保存。可稍后重试。' : error.status ? error.message : 'AI 响应或连接异常，本次未保存。',
+          error_code: error.errorCode || reason, stage: context.stage || null, request_id: context.request_id });
       } finally { clearTimeout(timer); release(); }
     });
     app.all(path, (_req, res) => res.status(405).set('Allow', 'POST').json({ error: '请使用 POST。' }));
@@ -130,12 +156,12 @@ function mountProduction(app, { env, fetchImpl, acquire, timeoutMs = 90000, tota
     const data = await requestJSON('episode_production', C.episodeSchema(options.type),
       `${system}只生成指定的一集。严格遵守人物外观、秘密、关系及整季大纲，不提前揭露后续真相；前集已生成时以其连续性摘要为准，否则依据前集大纲接续。continuity_summary记录本集最终人物状态、已揭露信息与待解决线索。${options.type === 'novel'
         ? '生成真正的中文小说章节正文chapter_text，至少800字、至多2500字，包含叙事、动作、心理与自然对话。禁止地点/人物/对白标签式剧本，不生成镜头、配音或时长。'
-        : `生成${options.type === 'comic' ? '漫画分镜与可剪辑漫剧' : '短剧'}单集。opening_hook为0至3秒强钩子；scenes包含连续编号、地点、时间、人物姓名数组、动作、对白。场景人物仅用Bible中的姓名。pacing写明时间节奏节点。voiceover是可直接配音的干净文本。shot_list为3至20个镜头，编号连续，duration以秒为数字，总和必须等于${options.duration}秒；image_prompt与video_prompt全部英文，明确复用人物发型、脸部、服装、身材和标志物。漫画强调画格、景别与转场。对白长度适合目标时长。无对白的镜头用“无对白”。`}`,
+        : `生成${options.type === 'comic' ? '漫画分镜与可剪辑漫剧' : '短剧'}单集，目标是可直接进入视频制作的拍摄稿，不是文学剧本。一集只推进一个核心事件和一个主要冲突。${options.duration}秒作品优先控制在2至3个场景，只有剧情确实需要才增加场景。前3秒直接出现异常、危险、冲突或强视觉动作，禁止用环境铺陈、心理描写、解释性旁白慢慢开场。对白用短句，人物在压力下说话，而不是向观众解释剧情；不要写“天哪”“谁在恶作剧”“这是怎么回事”这类没有人物特征、只承担说明功能的模板台词。画面已经表达的信息不要再用对白重复。每个镜头只承担一个主要动作或信息，避免走路、开门、转场、查看等没有新信息的过渡动作。最后3秒必须留下未解决的危险、新的异常或关键秘密之一，形成明确的追更理由。场景只负责地点、时间、人物、场景目的与对白；具体画面、动作、镜头与时长全部由shot_list承担，两个层级不要重复描述同一件事。shot_list编号连续，shot_type写景别与机位，scene_number指向所属场景，dialogue_line填0表示本镜头无对白、填1至N表示引用本场第N句对白，duration以秒为数字，全部镜头时长之和必须等于${options.duration}秒。image_prompt与video_prompt用英文并保持简洁，人物外观直接复用Bible的visual_identity，不要写成长篇人物介绍。漫画强调画格、景别与转场。`}`,
       { options, bible, episode_outline: episode_outlines[number - 1],
         previous_outline: episode_outlines[number - 2] || null,
         previous_episode: previous ? { episode_number: previous.episode_number, continuity_summary: previous.continuity_summary, cliffhanger: previous.cliffhanger } : null,
         next_outline: episode_outlines[number] || null }, signal, context);
-    return validateResult(context, () => C.validateEpisode(data, options, number, series), '单集结构、人物或镜头时长不符合要求，请重试。');
+    return validateResult(context, () => C.validateEpisode(C.normalizeEpisode(data, options, series), options, number, series), '单集结构、人物或镜头时长不符合要求，请重试。');
   });
 }
 module.exports = { mountProduction };

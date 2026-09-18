@@ -1,8 +1,10 @@
 'use strict';
 const express = require('express');
 const path = require('node:path');
+const { randomUUID } = require('node:crypto');
 const { existsSync } = require('node:fs');
 const { mountProduction } = require('./production');
+const { responseDetails, writeDiagnostic } = require('./production-diagnostics');
 
 const fields = ['title', 'characters', 'summary', 'episode', 'image_prompt'];
 const types = { drama: '短剧', comic: '漫画', novel: '小说' };
@@ -50,9 +52,12 @@ app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', c
   }
   mountProduction(app, { env, fetchImpl, acquire, timeoutMs: productionTimeoutMs, totalTimeoutMs, logger: productionLogger });
   app.post('/api/create-story', async (req, res) => {
+    const request_id = randomUUID();
+    const context = { request_id, endpoint: '/api/create-story', stage: 'story_creation', request_index: 1, total_requests: 1 };
+    const log = (event, details) => { try { (productionLogger || writeDiagnostic)(context, event, details); } catch { /* Logging must not break generation. */ } };
     if (!req.is('application/json')) return res.status(415).json({ error: '请发送 application/json。' });
     const { idea, type } = req.body || {};
-    if (typeof idea !== 'string' || !idea.trim() || idea.trim().length > 500 || !Object.hasOwn(types, type)) return res.status(400).json({ error: '请输入 1 至 500 字创意，类型必须为 drama、comic 或 novel。' });
+    if (typeof idea !== 'string' || !idea.trim() || idea.trim().length > 500 || !Object.hasOwn(types, type)) return res.status(400).json({ error: '请输入 1 至 500 字创意，类型必须为 drama、comic 或 novel。', error_code: 'invalid_idea_or_type', stage: 'input_validation' });
     if (!env.DEEPSEEK_API_KEY?.trim() || !env.DEEPSEEK_MODEL?.trim())
        return res.status(503).json({ error: '请在 server/.env 配置 DEEPSEEK_API_KEY 和 DEEPSEEK_MODEL，然后重启服务。' });
     const release = acquire();
@@ -60,6 +65,8 @@ app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', c
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     res.on('close', () => { if (!res.writableEnded) controller.abort(); });
+    const started = Date.now();
+    log('request_start', { max_output_tokens: 6000, timeout_ms: timeoutMs });
     try {
       const upstream = await fetchImpl('https://api.deepseek.com/v1/responses', {
     method: 'POST', signal: controller.signal,
@@ -70,19 +77,49 @@ app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', c
           input: idea.trim(), text: { format: { type: 'json_schema', name: 'story_creation', strict: true, schema } }
         })
       });
+      log('http_response', { http_status: Number.isInteger(upstream.status) ? upstream.status : null, elapsed_ms: Date.now() - started });
       if (!upstream.ok) {
         const code = upstream.status === 429 ? 429 : upstream.status === 401 ? 401 : 502;
-        return res.status(code).json({ error: code === 401 ? 'DeepSeek 密钥验证失败，请检查服务端配置。' : code === 429 ? 'DeepSeek 配额或速率受限，请稍后重试。' : 'DeepSeek 服务请求失败，请检查模型配置或稍后重试。' });
+        return res.status(code).json({ error: code === 401 ? 'DeepSeek 密钥验证失败，请检查服务端配置。' : code === 429 ? 'DeepSeek 配额或速率受限，请稍后重试。' : 'DeepSeek 服务请求失败，请检查模型配置或稍后重试。',
+          error_code: code === 401 ? 'authentication' : code === 429 ? 'rate_limit' : 'upstream_http_error', stage: 'story_creation', request_id });
       }
       const response = await upstream.json();
-      if (response.status !== 'completed') return res.status(422).json({ error: '生成未完成，请缩短想法后重试。' });
-      const content = (response.output || []).flatMap(item => item.content || []);
-      if (content.some(item => item.type === 'refusal')) return res.status(422).json({ error: '无法完成此创意，请调整内容后重试。' });
-      const data = JSON.parse(content.filter(item => item.type === 'output_text').map(item => item.text).join(''));
-      if (!validStory(data)) return res.status(502).json({ error: 'AI 返回格式不完整，请重试。' });
+      const rawOutput = (response.output || []).flatMap(item => item.content || []);
+      const outputText = rawOutput.filter(item => item.type === 'output_text' && typeof item.text === 'string').map(item => item.text).join('');
+      let details = {};
+      try { details = responseDetails(response, { output_text_length: outputText.length }); } catch { details = {}; }
+      log('upstream_response', details);
+      if (response.status !== 'completed') {
+        const upstreamFailed = response.status === 'failed';
+        log('generation_failed', { reason: upstreamFailed ? 'upstream_failed' : details.incomplete_reason || 'incomplete_reason_missing',
+          error_code: upstreamFailed ? 'upstream_failed' : 'incomplete', stage: 'story_creation', retry: false });
+        return res.status(422).json({ error: '生成未完成，请缩短想法后重试。',
+          error_code: upstreamFailed ? 'upstream_failed' : details.incomplete_reason || 'incomplete', stage: 'story_creation', request_id });
+      }
+      if (rawOutput.some(item => item.type === 'refusal')) {
+        log('generation_failed', { reason: 'refusal', error_code: 'refusal', stage: 'story_creation', retry: false });
+        return res.status(422).json({ error: '无法完成此创意，请调整内容后重试。', error_code: 'refusal', stage: 'story_creation', request_id });
+      }
+      let data;
+      try { data = JSON.parse(outputText); }
+      catch (error) {
+        log('output_json_invalid', { output_text_length: outputText.length,
+          json_parse_error_type: error instanceof SyntaxError ? 'SyntaxError' : 'Error',
+          json_parse_error_index: Number.isSafeInteger(error?.position) ? error.position : null,
+          suspected_truncation: outputText.trimEnd() !== '' && !['}', ']', '"'].includes(outputText.trimEnd().at(-1)) });
+        return res.status(502).json({ error: 'AI 返回格式不完整，请重试。', error_code: 'output_json_invalid', stage: 'story_creation', request_id });
+      }
+      if (!validStory(data)) {
+        log('validation_failed', { validation_error_code: 'story_fields_invalid', reason: '五个字段必须为非空字符串且不超过上限' });
+        return res.status(502).json({ error: 'AI 返回格式不完整，请重试。', error_code: 'story_fields_invalid', stage: 'story_creation', request_id });
+      }
       res.json(data);
+      log('generation_complete', { elapsed_ms: Date.now() - started, output_text_length: outputText.length });
     } catch (error) {
-      if (!res.destroyed && !res.writableEnded) res.status(error.name === 'AbortError' ? 504 : 502).json({ error: error.name === 'AbortError' ? 'AI 请求超时，请稍后重试。' : 'API连接失败或响应无效，请稍后重试。' });
+      const timedOut = error.name === 'AbortError';
+      log('generation_failed', { reason: timedOut ? 'timeout_or_cancelled' : 'connection_error', error_code: timedOut ? 'timeout_or_cancelled' : 'connection_error', stage: 'story_creation', retry: false });
+      if (!res.destroyed && !res.writableEnded) res.status(timedOut ? 504 : 502).json({ error: timedOut ? 'AI 请求超时，请稍后重试。' : 'API连接失败或响应无效，请稍后重试。',
+        error_code: timedOut ? 'timeout_or_cancelled' : 'connection_error', stage: 'story_creation', request_id });
     } finally { clearTimeout(timer); release(); }
   });
   app.all('/api/create-story', (_req, res) => res.status(405).set('Allow', 'POST').json({ error: '请使用 POST 请求。' }));

@@ -61,17 +61,27 @@ window.ProductionView = (() => {
     container.append(node('h4', `第 ${episode.episode_number} 集 · ${episode.title}`));
     if (record.staleEpisodes.includes(episode.episode_number)) container.append(node('p', '前集已更新：这是保留的旧稿，建议重新生成本集以核对连续性。', 'field-error'));
     container.append(node('p', `本集基于${episode.episode_number === 1 ? '整季设定' : record.episodeSources?.[episode.episode_number] === 'script' ? '前集已生成内容' : '前集大纲'}接续。`, 'demo-note'));
-    facts(container, episode, { opening_hook: '开场钩子', pacing: '节奏节点', twist: '本集反转', cliffhanger: '结尾悬念', continuity_summary: '连续性摘要' });
     if (record.type === 'novel') {
+      facts(container, episode, { opening_hook: '开场钩子', pacing: '节奏节点', twist: '本集反转', cliffhanger: '结尾悬念', continuity_summary: '连续性摘要' });
       container.append(node('h4', '章节正文'), node('p', episode.chapter_text, 'chapter-text'));
     } else {
-      episode.scenes.forEach(scene => facts(disclosure(`场景 ${scene.scene_number} · ${scene.location}`, container, true), scene,
-        { time: '时间', characters: '人物', action: '动作', dialogue: '对白' }));
-      const voiceover = disclosure('配音文本', container); voiceover.append(node('p', episode.voiceover, 'structured-text'));
+      // V1 field mapping: scenes own place/cast/purpose/dialogue, shots own framing,
+      // action and timing. `dialogue_line` points at a line in the owning scene.
+      facts(container, episode, { opening_hook: '开场钩子', twist: '本集反转', cliffhanger: '结尾悬念', continuity_summary: '连续性摘要' });
+      const sceneByNumber = new Map(episode.scenes.map(scene => [scene.scene_number, scene]));
+      episode.scenes.forEach(scene => {
+        const detail = disclosure(`场景 ${scene.scene_number} · ${scene.location}`, container, true);
+        facts(detail, { ...scene, characters: scene.characters.join('、') }, { time: '时间', characters: '人物', purpose: '场景目的', duration: '场景时长' });
+        if (!scene.dialogue.length) { detail.append(node('p', '本场无对白', 'demo-note')); return; }
+        scene.dialogue.forEach((item, index) => detail.append(node('p', `${index + 1}. ${item.speaker}：${item.line}`, 'structured-text')));
+      });
       const shots = disclosure(record.type === 'comic' ? '漫画分镜 / 漫剧镜头' : '初步分镜', container);
       episode.shot_list.forEach(shot => {
-        const card = disclosure(`镜头 ${shot.shot_number} · ${shot.shot_type} · ${shot.duration} 秒`, shots);
-        facts(card, shot, { visual: '画面', action: '动作', dialogue: '对白', image_prompt: 'Image prompt', video_prompt: 'Video prompt' });
+        const owner = sceneByNumber.get(shot.scene_number);
+        const card = disclosure(`镜头 ${shot.shot_number} · 场景 ${shot.scene_number}${owner ? ` · ${owner.location}` : ''} · ${shot.shot_type} · ${shot.duration} 秒`, shots);
+        const line = shot.dialogue_line > 0 ? owner?.dialogue[shot.dialogue_line - 1] : null;
+        facts(card, { ...shot, dialogue_line: line ? `${line.speaker}：${line.line}` : '无对白' },
+          { visual: '画面', action: '动作', dialogue_line: '对白', image_prompt: 'Image prompt', video_prompt: 'Video prompt' });
       });
     }
     const copy = button('复制本集 JSON', async () => {

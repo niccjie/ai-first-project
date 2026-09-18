@@ -70,7 +70,24 @@ for (const type of ['drama', 'comic', 'novel']) test(`${type}: generate one epis
     assert.equal(payload.previous_outline.episode_number, 1);
     assert.equal(payload.next_outline.episode_number, 3);
     if (type === 'novel') { assert.ok(result.chapter_text.length >= 300); assert.equal(result.scenes, undefined); assert.equal(result.shot_list, undefined); }
-    else assert.equal(result.shot_list.reduce((n, s) => n + s.duration, 0), opts.duration);
+    else {
+      assert.equal(result.shot_list.reduce((n, s) => n + s.duration, 0), opts.duration);
+      // V1 production shape: no duplicated narrative fields, scene<->shot linkage intact.
+      assert.equal(result.voiceover, undefined); assert.equal(result.pacing, undefined);
+      assert.ok(result.scenes.every(scene => !('action' in scene)));
+      const sceneNumbers = new Set(result.scenes.map(scene => scene.scene_number));
+      assert.equal(sceneNumbers.size, result.scenes.length);
+      for (const shot of result.shot_list) {
+        assert.ok(sceneNumbers.has(shot.scene_number), 'shot must reference a real scene');
+        if (shot.dialogue_line !== 0) {
+          const owner = result.scenes.find(scene => scene.scene_number === shot.scene_number);
+          assert.ok(shot.dialogue_line <= owner.dialogue.length, 'dialogue_line must reference a real line');
+        }
+      }
+      for (const scene of result.scenes) {
+        for (const item of scene.dialogue) assert.ok(plan.characters.some(c => c.name === item.speaker));
+      }
+    }
   });
 });
 test('invalid input and inconsistent plans are rejected before any provider request', async () => {
@@ -117,6 +134,48 @@ test('single episode validation checks duration, character identity and English 
   for (const corrupt of [episode => { episode.shot_list[0].duration += 10; }, episode => { episode.scenes[0].characters = ['陌生人']; }, episode => { episode.shot_list[0].image_prompt = '中文提示'; }]) {
     const episode = demo.demoEpisode(plan, opts, 1); corrupt(episode); assert.throws(() => C.validateEpisode(episode, opts, 1, plan));
   }
+});
+test('V1 episode validation enforces scene/dialogue linkage with machine-readable codes', () => {
+  const opts = options(), plan = demo.demoSeries(opts);
+  const owner = episode => episode.scenes.find(scene => scene.scene_number === episode.shot_list[0].scene_number);
+  for (const [code, corrupt] of [
+    ['duplicate_scene_number', episode => { episode.scenes[1].scene_number = episode.scenes[0].scene_number; }],
+    ['shot_scene_reference', episode => { episode.shot_list[0].scene_number = 5; }],
+    ['dialogue_line_reference', episode => { episode.shot_list[0].dialogue_line = owner(episode).dialogue.length + 1; }],
+    ['unknown_dialogue_speaker', episode => { episode.scenes.find(scene => scene.dialogue.length).dialogue[0].speaker = '陌生人'; }],
+    ['unknown_scene_character', episode => { episode.scenes[0].characters = ['陌生人']; }],
+    ['prompt_not_english', episode => { episode.shot_list[0].video_prompt = '中文提示'; }],
+    ['shot_numbering', episode => { episode.shot_list[0].shot_number = 9; }],
+    ['shot_duration_total', episode => { episode.shot_list[0].duration += 5; }]
+  ]) {
+    const episode = demo.demoEpisode(plan, opts, 1); corrupt(episode);
+    assert.throws(() => C.validateEpisode(episode, opts, 1, plan), error => error.code === code, `expected ${code}`);
+  }
+  // Loose duration tolerance: a legal output must not be discarded over rounding.
+  const drifted = demo.demoEpisode(plan, opts, 1);
+  drifted.shot_list[0].duration += 0.4;
+  C.validateEpisode(drifted, opts, 1, plan);
+});
+test('legacy V0.2 episodes migrate to V1 without losing usable content', () => {
+  const opts = options(), plan = demo.demoSeries(opts);
+  const legacy = {
+    episode_number: 1, title: '旧稿', opening_hook: '旧钩子', twist: '旧反转', cliffhanger: '旧悬念', continuity_summary: '旧摘要',
+    pacing: '旧节奏节点', voiceover: '旧旁白文本',
+    scenes: [{ scene_number: 1, location: '档案室', time: '夜晚', characters: [plan.characters[0].name], action: '旧场景动作', dialogue: `${plan.characters[0].name}：“旧台词。”` }],
+    shot_list: Array.from({ length: 6 }, (_, i) => ({ shot_number: i + 1, shot_type: '中景', visual: `画面${i + 1}`, action: `动作${i + 1}`,
+      dialogue: '无对白', duration: opts.duration / 6, image_prompt: `Shot ${i + 1}, no text`, video_prompt: `Shot ${i + 1}, static` }))
+  };
+  const snapshot = JSON.stringify(legacy);
+  const migrated = C.normalizeEpisode(legacy, opts, plan);
+  assert.equal(JSON.stringify(legacy), snapshot, 'migration must not mutate the stored record');
+  C.validateEpisode(migrated, opts, 1, plan);
+  assert.equal(migrated.pacing, undefined); assert.equal(migrated.voiceover, undefined);
+  assert.equal(migrated.scenes[0].action, undefined); assert.equal(migrated.scenes[0].purpose, '旧场景动作');
+  assert.deepEqual(migrated.scenes[0].dialogue, [{ speaker: plan.characters[0].name, line: '旧台词。' }]);
+  assert.ok(migrated.shot_list.every(shot => Number.isInteger(shot.scene_number)));
+  // The novel path must be untouched by migration.
+  const nopts = options(20, 'novel'), nplan = demo.demoSeries(nopts), novel = demo.demoEpisode(nplan, nopts, 1);
+  assert.equal(C.normalizeEpisode(novel, nopts, nplan), novel);
 });
 test('limits apply to new endpoints and cross-origin requests remain blocked', async () => {
   const opts = options(), plan = demo.demoSeries(opts), calls = [];

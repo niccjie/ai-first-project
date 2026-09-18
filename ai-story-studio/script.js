@@ -164,7 +164,10 @@ function validRecord(record) {
   for (const [key, episode] of Object.entries(record.episodes)) {
     const number = Number(key);
     if (!Number.isInteger(number) || number < 1 || number > options.total_episodes || String(number) !== key) return false;
-    contract.validateEpisode(episode, options, number, record.data);
+    // Legacy V0.2 episodes are upgraded in place (in memory only) so old history stays usable.
+    const normalized = contract.normalizeEpisode(episode, options, record.data);
+    if (normalized !== episode) record.episodes[key] = normalized;
+    contract.validateEpisode(normalized, options, number, record.data);
   }
   if (!Number.isInteger(record.selectedEpisode) || record.selectedEpisode < 1 || record.selectedEpisode > options.total_episodes) record.selectedEpisode = 1;
   record.staleEpisodes = Array.isArray(record.staleEpisodes) ? record.staleEpisodes.filter(n => Number.isInteger(n) && n >= 1 && n <= options.total_episodes) : [];
