@@ -1,6 +1,7 @@
 services:
   - type: web
     name: ai-creator-studio-niccjie
+    plan: free
     runtime: node
     rootDir: ai-story-studio/server
     buildCommand: npm ci
