@@ -7,6 +7,7 @@
 - [个人主页](https://niccjie.github.io/ai-first-project/)
 - [《未读消息》完整案例](https://niccjie.github.io/ai-first-project/ai-story-studio/examples/unread-messages/)
 - [免费试用申请](https://niccjie.github.io/ai-first-project/trial.html)
+- [试用交付流程](./docs/trial-operations.md)
 
 ## 这个项目解决什么问题
 
