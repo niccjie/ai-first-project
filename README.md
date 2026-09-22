@@ -6,7 +6,7 @@
 
 - [个人主页](https://niccjie.github.io/ai-first-project/)
 - [《未读消息》完整案例](https://niccjie.github.io/ai-first-project/ai-story-studio/examples/unread-messages/)
-- [免费试用申请](https://niccjie.github.io/ai-first-project/trial.html)
+- [免费试用申请](https://niccjie.github.io/ai-first-project/trial.html?v=2)
 - [试用交付流程](./docs/trial-operations.md)
 
 ## 这个项目解决什么问题
@@ -40,6 +40,6 @@
 
 ## 反馈与合作
 
-目前开放 3 个免费试用名额。你可以从 [试用页面](https://niccjie.github.io/ai-first-project/trial.html) 提交一个故事想法，或通过页面内的邮件入口联系我。
+目前开放 3 个免费试用名额。你可以从 [试用页面](https://niccjie.github.io/ai-first-project/trial.html?v=2) 提交一个故事想法。
 
 > 本仓库不应包含 API Key、密码或任何用户敏感信息。

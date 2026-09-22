@@ -6,7 +6,7 @@
 
 你只要给我一句故事想法，我会按你的方向做一份可读的创作方案；作为交换，希望你花 5 分钟告诉我哪里有用、哪里看不懂。不会收费，也不会要求你提供账号、密码或 API Key。
 
-案例和申请入口：`https://niccjie.github.io/ai-first-project/trial.html`
+案例和申请入口：`https://niccjie.github.io/ai-first-project/trial.html?v=2`
 
 ## 收到交付物后，问对方的 5 个问题
 
