@@ -1,5 +1,29 @@
 # niccjie AI Creator Studio · 生产工作台 V0.2
 
+## Current backend, configuration, and security boundary
+
+The current production backend is `server/server.js` with DeepSeek Responses. Start it locally from the repository root:
+
+```powershell
+cd ai-story-studio/server
+npm.cmd start
+```
+
+Configure `server/.env` from `server/.env.example`: `DEEPSEEK_API_KEY`, `DEEPSEEK_MODEL` (default `deepseek-chat`), and optional `PORT` (default `3000`). Local development can omit `ALLOWED_ORIGIN`; the server remains local-only and accepts its same-origin browser page. Public deployment must set `ALLOWED_ORIGIN` to the exact public frontend origin, for example `https://niccjie.github.io` (no path or trailing slash).
+
+`ALLOWED_ORIGIN` is a browser-origin check and CORS configuration, **not authentication**. Public generation POST requests must present that Origin, but non-browser clients can forge an Origin header. The existing in-memory limit (10 generation requests per minute and 2 concurrent requests per process) is only a small cost guard: it is not shared across restarts or instances and is not a user identity or billing boundary. Use provider/deployment network controls or real identity controls before treating a public API as abuse-resistant.
+
+Run only offline tests with mock providers; these commands do not read `.env` or call DeepSeek/OpenAI:
+
+```powershell
+cd ai-story-studio/server
+npm.cmd test
+node ../tests/run.mjs
+node ../tests/workspace.mjs
+```
+
+`backend/server.mjs` is legacy OpenAI compatibility code, not the current production entry point. Do not start it for normal development or deployment: it uses separate `OPENAI_*` settings and could create OpenAI API charges if configured.
+
 一个创意 → 作品 Bible → 整季结构 → 多集大纲 → 按需生成单集。
 
 这是已有 AI Story Studio 的增量升级。保留原有米白、橙色卡片界面、Demo、复制、历史记录和旧版快速创作；继续使用已验证可用的 **DeepSeek `/v1/responses`**。本轮不更改现有密钥、模型配置或接入其他媒体 API。

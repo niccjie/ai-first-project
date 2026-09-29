@@ -1,0 +1,15 @@
+# Local secrets (example templates remain tracked)
+.env
+.env.*
+!.env.example
+
+# Dependencies and logs
+node_modules/
+*.log
+logs/
+
+# Common editor and operating-system temporary files
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

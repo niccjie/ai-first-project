@@ -21,7 +21,7 @@ async function serve(extra, run) {
   try { await run(`http://127.0.0.1:${server.address().port}`); }
   finally { await new Promise(resolve => server.close(resolve)); }
 }
-const post = (url, route, body) => fetch(url + route, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+const post = (url, route, body, extra = {}) => fetch(url + route, { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: new URL(url).origin, ...extra }, body: JSON.stringify(body) });
 function provider(opts, calls, mutate = data => data) {
   const plan = demo.demoSeries(opts);
   return async (url, request) => {
@@ -197,6 +197,29 @@ test('limits apply to new endpoints and cross-origin requests remain blocked', a
     assert.equal((await post(url, '/api/create-series', opts)).status, 429);
     assert.equal((await fetch(url + '/api/create-series', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: 'https://other.test' }, body: JSON.stringify(opts) })).status, 403);
     assert.equal((await fetch(url + '/api/create-episode')).status, 405);
+  });
+});
+
+test('concurrent production requests are bounded before an additional provider call', async () => {
+  const opts = options(), calls = [];
+  const replyProvider = provider(opts, calls);
+  let started = 0;
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  await serve({ fetchImpl: async (...args) => {
+    started++;
+    if (started <= 2) await gate;
+    return replyProvider(...args);
+  } }, async url => {
+    const first = post(url, '/api/create-series', opts);
+    const second = post(url, '/api/create-series', opts);
+    while (started < 2) await new Promise(resolve => setImmediate(resolve));
+    const third = await post(url, '/api/create-series', opts);
+    assert.equal(third.status, 429);
+    assert.equal(started, 2);
+    release();
+    assert.equal((await first).status, 200);
+    assert.equal((await second).status, 200);
   });
 });
 

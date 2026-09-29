@@ -41,11 +41,17 @@ function createApp({ env = process.env, fetchImpl = fetch, timeoutMs = 55000, pr
   }
   app.use('/api', (_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
 app.get('/api/health', (_req, res) => res.json({ service: 'ai-creator-studio', configured: Boolean(env.DEEPSEEK_API_KEY?.trim() && env.DEEPSEEK_MODEL?.trim()) }));  app.use('/api', (req, res, next) => {
-    // Browser requests must come from the configured Pages origin. CLI health
-    // checks may omit Origin. This keeps the DeepSeek key server-only.
+    // CORS controls browser access only; it is not authentication. For a public
+    // deployment, generation POSTs must at least carry the configured browser
+    // Origin. Non-browser clients can forge Origin, so deployer-controlled
+    // network or identity controls are still required for stronger protection.
     const origin = req.get('origin');
     const expectedOrigin = allowedOrigin || `${req.protocol}://${req.get('host')}`;
+    const isGenerationPost = req.method === 'POST' && ['/create-story', '/create-series', '/create-episode'].includes(req.path);
     if (origin && origin !== expectedOrigin) return res.status(403).json({ error: '不允许跨站请求。' });
+    if (allowedOrigin && isGenerationPost && origin !== expectedOrigin) {
+      return res.status(403).json({ error: 'Public generation requests must come from the configured site.' });
+    }
     if (origin) {
       res.set('Access-Control-Allow-Origin', expectedOrigin);
       res.set('Vary', 'Origin');

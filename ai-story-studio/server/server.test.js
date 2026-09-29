@@ -10,7 +10,7 @@ async function serve(options, run) {
   finally { await new Promise(resolve => server.close(resolve)); }
 }
 const env = { DEEPSEEK_API_KEY: 'test-placeholder', DEEPSEEK_MODEL: 'test-model' };
-const post = (url, body, extra = {}) => fetch(url + '/api/create-story', { method: 'POST', headers: { 'Content-Type': 'application/json', ...extra }, body: JSON.stringify(body) });
+const post = (url, body, extra = {}) => fetch(url + '/api/create-story', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: new URL(url).origin, ...extra }, body: JSON.stringify(body) });
 test('Express serves UI, blocks secrets, validates requests and returns five AI fields', async () => {
   let calls = 0;
   await serve({ env, fetchImpl: async (url, options) => {
@@ -29,7 +29,7 @@ test('Express serves UI, blocks secrets, validates requests and returns five AI 
     assert.equal((await post(url, { idea: 'x', type: '__proto__' })).status, 400);
     assert.equal((await post(url, { idea: 'x', type: 'drama' }, { Origin: 'https://other.test' })).status, 403);
     assert.equal((await fetch(url + '/api/create-story')).status, 405);
-    assert.equal((await fetch(url + '/api/create-story', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{bad' })).status, 400);
+    assert.equal((await fetch(url + '/api/create-story', { method: 'POST', headers: { 'Content-Type': 'application/json', Origin: new URL(url).origin }, body: '{bad' })).status, 400);
     assert.equal((await post(url, { idea: 'x'.repeat(9000), type: 'drama' })).status, 413);
     for (const type of ['drama', 'comic', 'novel']) {
       const response = await post(url, { idea: '大学生的AI故事', type });
@@ -54,6 +54,20 @@ test('configured public origin receives only its CORS permission', async () => {
     assert.equal((await fetch(url + '/api/health', { headers })).status, 200);
     const otherOrigin = await fetch(url + '/api/health', { headers: { Origin: 'https://other.test' } });
     assert.equal(otherOrigin.headers.get('access-control-allow-origin'), null);
+  });
+});
+test('public generation POSTs require the configured Origin', async () => {
+  let calls = 0;
+  const publicOrigin = 'https://niccjie.github.io';
+  await serve({ env: { ...env, ALLOWED_ORIGIN: publicOrigin }, fetchImpl: async () => {
+    calls++;
+    return { ok: true, status: 200, json: async () => ({ status: 'completed', output: [{ content: [{ type: 'output_text', text: JSON.stringify(fixture) }] }] }) };
+  } }, async url => {
+    assert.equal((await post(url, { idea: 'x', type: 'drama' }, { Origin: publicOrigin })).status, 200);
+    assert.equal((await post(url, { idea: 'x', type: 'drama' }, { Origin: 'https://other.test' })).status, 403);
+    const missingOrigin = await fetch(url + '/api/create-story', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ idea: 'x', type: 'drama' }) });
+    assert.equal(missingOrigin.status, 403);
+    assert.equal(calls, 1);
   });
 });
 test('upstream failures, refusal, malformed output and timeout are handled', async () => {
